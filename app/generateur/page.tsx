@@ -1,33 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
-type Age = "4-12" | "12-18" | "18+";
-type Preference = "classique" | "sansPorc" | "vegetarien";
-type ModePeriode = "semaine" | "mois";
-type StyleRepas = "simple" | "soupe" | "platFamilial";
-
-type Quantites = {
-  feculent: string;
-  legumes: string;
-  proteine: string;
-  matiereGrasse: string;
-};
-
-type MenuJour = {
+type JourMenu = {
   jour: string;
-  style: StyleRepas;
+
   diner: {
-    boisson: string;
-    plat: string;
     feculent: string;
     legumes: string;
-    legumesPrincipaux: string[];
     proteine: string;
     matiereGrasse: string;
-    remarque: string;
   };
+
   gouter: {
     bebe: string;
     fruit: string;
@@ -35,476 +20,329 @@ type MenuJour = {
     pain18: string;
     laitier18: string;
   };
-  textures: Record<Age, string>;
-  quantites: Record<Age, Quantites>;
 };
 
-const joursSemaine = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
-
-const joursMois = Array.from({ length: 20 }, (_, index) => {
-  const semaine = Math.floor(index / 5) + 1;
-  const jour = joursSemaine[index % 5];
-  return `Semaine ${semaine} - ${jour}`;
-});
-
-const legumesSimples = [
-  "Carotte",
-  "Courgette",
-  "Brocoli",
-  "Haricots verts",
-  "Chou-fleur",
-  "Épinard",
-  "Poireau",
-  "Potiron",
-  "Butternut",
-  "Petits pois",
-  "Fenouil",
-  "Betterave",
+const jours = [
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
 ];
 
-const associationsLegumes = [
-  { label: "Carotte + courgette", principaux: ["Carotte", "Courgette"] },
-  { label: "Brocoli + courgette", principaux: ["Brocoli", "Courgette"] },
-  { label: "Poireau + butternut", principaux: ["Poireau", "Butternut"] },
-  { label: "Carotte + chou-fleur", principaux: ["Carotte", "Chou-fleur"] },
-  {
-    label: "Courgette + tomate cuite douce",
-    principaux: ["Courgette", "Tomate cuite"],
-  },
-  { label: "Potiron + carotte", principaux: ["Potiron", "Carotte"] },
-  { label: "Épinard + pomme de terre", principaux: ["Épinard"] },
-];
-
-const soupes = [
-  { plat: "Soupe poireau + butternut", principaux: ["Poireau", "Butternut"] },
-  { plat: "Soupe carotte + potiron", principaux: ["Carotte", "Potiron"] },
-  { plat: "Soupe courgette + pomme de terre", principaux: ["Courgette"] },
-  { plat: "Soupe brocoli + courgette", principaux: ["Brocoli", "Courgette"] },
-];
-
-const feculents = [
+const feculentsPommesDeTerre = [
   "Pommes de terre",
+  "Patate douce",
+  "Purée pomme de terre",
+];
+
+const autresFeculents = [
   "Riz",
   "Pâtes",
   "Semoule",
-  "Patate douce",
+  "Polenta",
   "Quinoa",
   "Boulgour",
-  "Polenta",
 ];
 
-const poissonsMaigres = ["Cabillaud", "Colin"];
-const poissonsGras = ["Saumon"];
-const volailles = ["Poulet", "Dinde"];
-const viandesRouges = ["Bœuf"];
-const porc = ["Porc"];
-
-const platsFamiliaux = [
-  {
-    plat: "Couscous doux légumes-poulet",
-    feculent: "Semoule",
-    legumes: "Carotte + courgette + légumes fondants",
-    principaux: ["Carotte", "Courgette"],
-    proteine: "Poulet",
-    remarque:
-      "Plat proposé uniquement aux 12 mois et +. Pour les moins de 12 mois : garder une version vapeur simple.",
-  },
-  {
-    plat: "Pâtes sauce légumes maison",
-    feculent: "Pâtes",
-    legumes: "Tomate cuite + carotte + courgette mixées",
-    principaux: ["Tomate cuite", "Carotte", "Courgette"],
-    proteine: "Dinde",
-    remarque:
-      "Sauce uniquement à base de légumes cuits mixés, sans sauce industrielle.",
-  },
-  {
-    plat: "Riz doux courgette-carotte",
-    feculent: "Riz",
-    legumes: "Courgette + carotte",
-    principaux: ["Courgette", "Carotte"],
-    proteine: "Cabillaud",
-    remarque: "Texture adaptée selon l’âge.",
-  },
-  {
-    plat: "Polenta légumes fondants",
-    feculent: "Polenta",
-    legumes: "Butternut + courgette",
-    principaux: ["Butternut", "Courgette"],
-    proteine: "Œuf dur",
-    remarque: "Texture souple, adaptée aux petits morceaux fondants.",
-  },
+const legumes = [
+  "Carotte",
+  "Courgette",
+  "Brocoli",
+  "Poireau",
+  "Butternut",
+  "Petits pois",
+  "Haricots verts",
+  "Chou-fleur",
+  "Épinards",
+  "Fenouil",
+  "Potiron",
+  "Tomate",
 ];
 
-const compotesBebe = [
-  "Compote pomme-banane-poire",
-  "Compote pomme-poire",
-  "Compote banane-fraise-pomme",
-  "Compote pomme-abricot",
-  "Compote poire-banane-kiwi",
-  "Compote pomme-pêche",
-  "Compote poire-mangue",
+const proteines = [
+  "Poulet",
+  "Dinde",
+  "Bœuf",
+  "Porc",
+  "Saumon",
+  "Cabillaud",
+  "Colin",
+  "Truite",
+  "Œuf dur",
 ];
 
-const fruitsGouter = [
-  "Pomme + poire",
-  "Banane + pomme",
-  "Poire + kiwi",
-  "Pomme + fraise",
-  "Banane + pêche",
-  "Pomme + abricot",
-  "Poire + mandarine",
+const huiles = [
+  "Huile d’olive",
+  "Huile de colza",
+  "Beurre",
 ];
 
-const laitagesMois18 = [
-  "Non nécessaire",
-  "Fromage",
-  "Non nécessaire",
+const fruits = [
+  "Pomme",
+  "Poire",
+  "Banane",
+  "Kiwi",
+  "Pêche",
+  "Abricot",
+  "Fraise",
+];
+
+const laitages = [
   "Yaourt nature",
-  "Non nécessaire",
   "Fromage frais",
-  "Non nécessaire",
-  "Yaourt nature",
-  "Non nécessaire",
+  "Petit suisse",
   "Fromage",
-  "Non nécessaire",
-  "Yaourt nature",
-  "Non nécessaire",
-  "Fromage frais",
-  "Non nécessaire",
-  "Non nécessaire",
-  "Fromage",
-  "Non nécessaire",
-  "Yaourt nature",
-  "Non nécessaire",
 ];
 
-function prendreDifferent(liste: string[], actuel: string) {
-  const possibles = liste.filter((item) => item !== actuel);
-  return possibles[Math.floor(Math.random() * possibles.length)] ?? liste[0];
+function melanger<T>(tableau: T[]) {
+  return [...tableau].sort(() => Math.random() - 0.5);
 }
 
-function choisirLegumeSimple(legumesDominants: string[]) {
-  const disponibles = legumesSimples.filter(
-    (legume) => !legumesDominants.includes(legume)
-  );
+function choisir<T>(tableau: T[], utilise: T[]) {
+  const disponible = tableau.filter((item) => !utilise.includes(item));
 
-  const source = disponibles.length > 0 ? disponibles : legumesSimples;
-  return source[Math.floor(Math.random() * source.length)];
-}
-
-function choisirAssociationLegumes(legumesDominants: string[]) {
-  const disponibles = associationsLegumes.filter((association) =>
-    association.principaux.every((legume) => !legumesDominants.includes(legume))
-  );
-
-  const source = disponibles.length > 0 ? disponibles : associationsLegumes;
-  return source[Math.floor(Math.random() * source.length)];
-}
-
-function choisirSoupe(legumesDominants: string[]) {
-  const disponibles = soupes.filter((soupe) =>
-    soupe.principaux.every((legume) => !legumesDominants.includes(legume))
-  );
-
-  const source = disponibles.length > 0 ? disponibles : soupes;
-  return source[Math.floor(Math.random() * source.length)];
-}
-
-function choisirPlatFamilial(legumesDominants: string[]) {
-  const disponibles = platsFamiliaux.filter((plat) =>
-    plat.principaux.every((legume) => !legumesDominants.includes(legume))
-  );
-
-  const source = disponibles.length > 0 ? disponibles : platsFamiliaux;
-  return source[Math.floor(Math.random() * source.length)];
-}
-
-function quantitesONE(): Record<Age, Quantites> {
-  return {
-    "4-12": {
-      feculent: "70 à 125 g",
-      legumes: "70 à 125 g",
-      proteine: "5 à 15 g",
-      matiereGrasse: "5 à 15 ml d’huile / beurre selon préparation",
-    },
-    "12-18": {
-      feculent: "100 à 125 g",
-      legumes: "100 à 125 g",
-      proteine: "10 à 15 g",
-      matiereGrasse: "15 ml d’huile ou 20 g de beurre selon préparation",
-    },
-    "18+": {
-      feculent: "100 à 125 g",
-      legumes: "100 à 125 g",
-      proteine: "20 à 30 g",
-      matiereGrasse: "10 ml d’huile ou 15 g de beurre selon préparation",
-    },
-  };
-}
-
-function choisirStyle(index: number): StyleRepas {
-  if (index % 5 === 1) return "soupe";
-  if (index % 5 === 3) return "platFamilial";
-  return "simple";
-}
-
-function choisirProteine(index: number, preference: Preference) {
-  const semaine = Math.floor(index / 5);
-  const jourSemaine = index % 5;
-
-  if (preference === "vegetarien") {
-    const planVegetarien = [
-      "Repas végétarien",
-      "Œuf dur",
-      "Repas végétarien",
-      "Repas végétarien",
-      "Repas végétarien",
-    ];
-
-    return planVegetarien[jourSemaine];
+  if (disponible.length === 0) {
+    utilise.length = 0;
+    return tableau[Math.floor(Math.random() * tableau.length)];
   }
 
-  const poissonMaigre = poissonsMaigres[semaine % poissonsMaigres.length];
-  const poissonGras = poissonsGras[semaine % poissonsGras.length];
-  const volaille1 = volailles[semaine % volailles.length];
+  const choix =
+    disponible[Math.floor(Math.random() * disponible.length)];
 
-  if (preference === "sansPorc") {
-    const planSansPorc = [
-      poissonMaigre,
-      volaille1,
-      "Œuf dur",
-      poissonGras,
-      viandesRouges[0],
-    ];
+  utilise.push(choix);
 
-    return planSansPorc[jourSemaine];
-  }
-
-  const planClassique = [
-    poissonMaigre,
-    volaille1,
-    "Œuf dur",
-    poissonGras,
-    semaine % 2 === 0 ? viandesRouges[0] : porc[0],
-  ];
-
-  return planClassique[jourSemaine];
+  return choix;
 }
 
-function genererMenu(
-  modePeriode: ModePeriode,
-  nombreJours: number,
-  preference: Preference
-): MenuJour[] {
-  const jours =
-    modePeriode === "mois" ? joursMois : joursSemaine.slice(0, nombreJours);
+function genererMenus(): JourMenu[] {
+  const menus: JourMenu[] = [];
 
-  let legumesDominants: string[] = [];
+  const legumesUtilises: string[] = [];
+  const proteinesUtilisees: string[] = [];
+  const feculentsUtilises: string[] = [];
 
-  return jours.map((jour, index) => {
-    if (index % 5 === 0) {
-      legumesDominants = [];
+  let pommesDeTerreCount = 0;
+
+  jours.forEach((jour) => {
+    let feculent = "";
+
+    if (pommesDeTerreCount < 3) {
+      feculent = choisir(
+        feculentsPommesDeTerre,
+        feculentsUtilises
+      );
+      pommesDeTerreCount++;
+    } else {
+      feculent = choisir(
+        autresFeculents,
+        feculentsUtilises
+      );
     }
 
-    const style = choisirStyle(index);
+    const legume1 = choisir(legumes, legumesUtilises);
 
-    let plat = "Repas simple";
-    let feculent = feculents[index % feculents.length];
-    let legumes = "";
-    let legumesPrincipaux: string[] = [];
-    let proteine = choisirProteine(index, preference);
-    let remarque =
-      "Repas simple : féculent + légume + VVP/O + matière grasse. Adaptation selon l’âge.";
+    let legumesRepas = legume1;
 
-    if (style === "simple") {
-      const legume = choisirLegumeSimple(legumesDominants);
-      legumes = legume;
-      legumesPrincipaux = [legume];
-    }
+    if (Math.random() > 0.6) {
+      const legume2 = choisir(legumes, legumesUtilises);
 
-    if (style === "soupe") {
-      const soupe = choisirSoupe(legumesDominants);
-      const association = choisirAssociationLegumes([
-        ...legumesDominants,
-        ...soupe.principaux,
-      ]);
-
-      plat = soupe.plat;
-      legumes = `${soupe.plat} + ${association.label}`;
-      legumesPrincipaux = [...soupe.principaux, ...association.principaux];
-      feculent = "Pommes de terre";
-      remarque =
-        "Repas avec soupe possible : soupe de légumes + féculent + VVP/O. Avant 12 mois : version vapeur/mixée simple.";
-    }
-
-    if (style === "platFamilial") {
-      const choisi = choisirPlatFamilial(legumesDominants);
-      plat = choisi.plat;
-      feculent = choisi.feculent;
-      legumes = choisi.legumes;
-      legumesPrincipaux = choisi.principaux;
-
-      if (preference === "vegetarien") {
-        proteine = index % 5 === 2 ? "Œuf dur" : "Repas végétarien";
-      } else {
-        proteine = choisirProteine(index, preference);
+      if (legume2 !== legume1) {
+        legumesRepas = `${legume1} + ${legume2}`;
       }
-
-      remarque = choisi.remarque;
     }
 
-    legumesDominants = [...legumesDominants, ...legumesPrincipaux];
+    const proteine = choisir(
+      proteines,
+      proteinesUtilisees
+    );
 
-    return {
+    const huile =
+      huiles[Math.floor(Math.random() * huiles.length)];
+
+    const fruit1 =
+      fruits[Math.floor(Math.random() * fruits.length)];
+
+    const fruit2 =
+      fruits[Math.floor(Math.random() * fruits.length)];
+
+    const laitier =
+      Math.random() > 0.5
+        ? laitages[Math.floor(Math.random() * laitages.length)]
+        : "Non nécessaire";
+
+    menus.push({
       jour,
-      style,
+
       diner: {
-        boisson: "Eau",
-        plat,
         feculent,
-        legumes,
-        legumesPrincipaux,
+        legumes: legumesRepas,
         proteine,
-        matiereGrasse: index % 2 === 0 ? "Huile de colza" : "Huile d’olive",
-        remarque,
+        matiereGrasse: huile,
       },
+
       gouter: {
-        bebe: compotesBebe[index % compotesBebe.length],
-        fruit: fruitsGouter[index % fruitsGouter.length],
+        bebe: `Compote ${fruit1.toLowerCase()}-${fruit2.toLowerCase()}`,
+        fruit: `${fruit1} + ${fruit2}`,
         pain1218: "Pain beurré",
-        pain18:
-          laitagesMois18[index % laitagesMois18.length] === "Fromage"
-            ? "Pain"
-            : "Pain beurré",
-        laitier18: laitagesMois18[index % laitagesMois18.length],
+        pain18: "Pain beurré",
+        laitier18: laitier,
       },
-      textures: {
-        "4-12":
-          "Repas simple uniquement : vapeur, purée lisse ou très finement écrasée. Pas de sauce ni plat familial avant 12 mois.",
-        "12-18":
-          "Texture écrasée, moulinée ou petits morceaux fondants. Plats familiaux doux possibles si adaptés.",
-        "18+":
-          "Morceaux fondants, aliments séparés si besoin. Plats plus construits possibles, sans sauce industrielle.",
-      },
-      quantites: quantitesONE(),
-    };
+    });
   });
+
+  return menus;
+}
+
+function extraireLegumes(texte: string) {
+  return texte.split("+").map((item) => item.trim());
+}
+
+function ajouterQuantite(
+  liste: Record<string, number>,
+  nom: string,
+  quantite: number
+) {
+  if (!liste[nom]) {
+    liste[nom] = 0;
+  }
+
+  liste[nom] += quantite;
+}type ListeCourses = {
+  legumes: Record<string, number>;
+  feculents: Record<string, number>;
+  proteines: Record<string, number>;
+  fruits: Record<string, number>;
+  autres: Record<string, number>;
+};
+
+function calculerListeCourses(
+  menus: JourMenu[],
+  enfantsParJour: Record<string, number>
+): ListeCourses {
+  const liste: ListeCourses = {
+    legumes: {},
+    feculents: {},
+    proteines: {},
+    fruits: {},
+    autres: {},
+  };
+
+  menus.forEach((menu) => {
+    const nbEnfants = enfantsParJour[menu.jour] || 0;
+
+    if (nbEnfants === 0) return;
+
+    extraireLegumes(menu.diner.legumes).forEach((legume) => {
+      const marge =
+        legume.toLowerCase().includes("brocoli") ||
+        legume.toLowerCase().includes("chou-fleur")
+          ? 1.35
+          : 1.25;
+
+      ajouterQuantite(liste.legumes, legume, nbEnfants * 120 * marge);
+    });
+
+    ajouterQuantite(
+      liste.feculents,
+      menu.diner.feculent,
+      nbEnfants * 120 * 1.15
+    );
+
+    ajouterQuantite(
+      liste.proteines,
+      menu.diner.proteine,
+      nbEnfants * 25 * 1.1
+    );
+
+    menu.gouter.fruit.split("+").forEach((fruit) => {
+      ajouterQuantite(liste.fruits, fruit.trim(), nbEnfants * 80 * 1.15);
+    });
+
+    ajouterQuantite(liste.autres, "Pain", nbEnfants * 40);
+
+    if (
+      menu.gouter.pain1218.includes("beurré") ||
+      menu.gouter.pain18.includes("beurré")
+    ) {
+      ajouterQuantite(liste.autres, "Beurre", nbEnfants * 8);
+    }
+
+    if (menu.gouter.laitier18 !== "Non nécessaire") {
+      ajouterQuantite(liste.autres, menu.gouter.laitier18, nbEnfants * 1);
+    }
+  });
+
+  return liste;
+}
+
+function afficherQuantite(nom: string, quantite: number) {
+  if (
+    nom.includes("Yaourt") ||
+    nom.includes("Fromage frais") ||
+    nom.includes("Petit suisse") ||
+    nom.includes("Fromage")
+  ) {
+    return `${Math.ceil(quantite)} portion(s)`;
+  }
+
+  if (quantite >= 1000) {
+    return `${(quantite / 1000).toFixed(2)} kg`;
+  }
+
+  return `${Math.ceil(quantite)} g`;
+}
+
+function CoursesBloc({
+  titre,
+  liste,
+}: {
+  titre: string;
+  liste: Record<string, number>;
+}) {
+  const entrees = Object.entries(liste);
+
+  if (entrees.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl bg-[#F7F3EA] p-5">
+      <h3 className="text-xl font-bold">{titre}</h3>
+
+      <ul className="mt-3 space-y-2 text-sm">
+        {entrees.map(([nom, quantite]) => (
+          <li key={nom} className="flex justify-between gap-4">
+            <span>{nom}</span>
+            <span className="font-bold">{afficherQuantite(nom, quantite)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export default function GenerateurPage() {
-  const [ages, setAges] = useState<Record<Age, boolean>>({
-    "4-12": true,
-    "12-18": true,
-    "18+": true,
+  const [menus, setMenus] = useState<JourMenu[]>([]);
+  const [enfantsParJour, setEnfantsParJour] = useState<Record<string, number>>({
+    Lundi: 0,
+    Mardi: 0,
+    Mercredi: 0,
+    Jeudi: 0,
+    Vendredi: 0,
   });
 
-  const [modePeriode, setModePeriode] = useState<ModePeriode>("semaine");
-  const [nombreJours, setNombreJours] = useState(5);
-  const [preference, setPreference] = useState<Preference>("classique");
-  const [menus, setMenus] = useState<MenuJour[]>([]);
+  const listeCourses = useMemo(
+    () => calculerListeCourses(menus, enfantsParJour),
+    [menus, enfantsParJour]
+  );
 
-  function toggleAge(age: Age) {
-    setAges((prev) => ({ ...prev, [age]: !prev[age] }));
+  function modifierNombreEnfants(jour: string, valeur: string) {
+    setEnfantsParJour((prev) => ({
+      ...prev,
+      [jour]: Number(valeur),
+    }));
   }
 
-  function modifierFeculent(index: number) {
-    setMenus((prev) => {
-      const copie = [...prev];
-      copie[index].diner.feculent = prendreDifferent(
-        feculents,
-        copie[index].diner.feculent
-      );
-      return [...copie];
-    });
-  }
-
-  function modifierProteine(index: number) {
-    setMenus((prev) => {
-      const copie = [...prev];
-      const semaineDebut = Math.floor(index / 5) * 5;
-      const semaineFin = semaineDebut + 5;
-
-      const proteinesSemaine = copie
-        .slice(semaineDebut, semaineFin)
-        .map((jour) => jour.diner.proteine);
-
-      const oeufDejaPresent =
-        proteinesSemaine.includes("Œuf dur") &&
-        copie[index].diner.proteine !== "Œuf dur";
-
-      let liste =
-        preference === "vegetarien"
-          ? ["Repas végétarien", "Œuf dur"]
-          : [
-              "Cabillaud",
-              "Colin",
-              "Poulet",
-              "Dinde",
-              "Saumon",
-              "Bœuf",
-              ...(preference === "sansPorc" ? [] : ["Porc"]),
-              "Œuf dur",
-            ];
-
-      if (oeufDejaPresent) {
-        liste = liste.filter((item) => item !== "Œuf dur");
-      }
-
-      copie[index].diner.proteine = prendreDifferent(
-        liste,
-        copie[index].diner.proteine
-      );
-
-      return [...copie];
-    });
-  }
-
-  function modifierCompote(index: number) {
-    setMenus((prev) => {
-      const copie = [...prev];
-      copie[index].gouter.bebe = prendreDifferent(
-        compotesBebe,
-        copie[index].gouter.bebe
-      );
-      return [...copie];
-    });
-  }
-
-  function modifierFruit(index: number) {
-    setMenus((prev) => {
-      const copie = [...prev];
-      copie[index].gouter.fruit = prendreDifferent(
-        fruitsGouter,
-        copie[index].gouter.fruit
-      );
-      return [...copie];
-    });
-  }
-
-  function modifierLaitier18(index: number) {
-    setMenus((prev) => {
-      const copie = [...prev];
-
-      const nouveauLaitier = prendreDifferent(
-        ["Non nécessaire", "Yaourt nature", "Fromage frais", "Fromage"],
-        copie[index].gouter.laitier18
-      );
-
-      copie[index].gouter.laitier18 = nouveauLaitier;
-      copie[index].gouter.pain18 =
-        nouveauLaitier === "Fromage" ? "Pain" : "Pain beurré";
-
-      return [...copie];
-    });
-  }
-
-  function sauvegarderMenu() {
-    localStorage.setItem("menuSemaine", JSON.stringify(menus));
-    alert("Menu sauvegardé sur cet appareil ✅");
-  }
-
-  function imprimerMenu() {
+  function imprimer() {
     window.print();
   }
 
@@ -528,39 +366,26 @@ export default function GenerateurPage() {
           .print-only {
             display: block;
             position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            inset: 0;
             background: white;
-            padding: 16px;
+            padding: 20px;
           }
 
           .screen-only {
             display: none !important;
           }
 
-          .print-only table {
+          table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 10px;
-          }
-
-          .print-only th,
-          .print-only td {
-            border: 1px solid #999;
-            padding: 5px;
-            text-align: left;
-            vertical-align: top;
-          }
-
-          .print-only h1 {
-            font-size: 22px;
-            margin-bottom: 12px;
-          }
-
-          .print-only p {
             font-size: 11px;
-            margin-bottom: 10px;
+          }
+
+          th,
+          td {
+            border: 1px solid #999;
+            padding: 6px;
+            vertical-align: top;
           }
         }
       `}</style>
@@ -577,341 +402,138 @@ export default function GenerateurPage() {
             </p>
 
             <h1 className="mt-5 text-5xl font-bold leading-tight">
-              Menus variés inspirés ONE
+              Menus & liste de courses
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-relaxed text-gray-600">
-              Génère une semaine ou un mois de repas variés, avec œuf limité à
-              une fois par semaine, poisson maigre / poisson gras, volaille,
-              bœuf et porc selon préférence.
+              Indique le nombre d’enfants par jour, génère un menu, puis obtiens
+              une liste de courses estimative avec marge pour les pertes.
             </p>
           </div>
 
-          <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
-            <section className="rounded-[2rem] bg-white p-8 shadow-sm">
-              <h2 className="text-3xl font-bold">Paramètres</h2>
+          <section className="mt-8 rounded-[2rem] bg-white p-8 shadow-sm">
+            <h2 className="text-3xl font-bold">Nombre d’enfants par jour</h2>
 
-              <div className="mt-6">
-                <p className="mb-3 font-bold">Période</p>
+            <div className="mt-6 grid gap-4 md:grid-cols-5">
+              {jours.map((jour) => (
+                <div key={jour}>
+                  <label className="font-bold">{jour}</label>
 
-                <div className="flex flex-wrap gap-3">
-                  {(["semaine", "mois"] as ModePeriode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => setModePeriode(mode)}
-                      className={`rounded-full px-5 py-3 font-bold ${
-                        modePeriode === mode
-                          ? "bg-[#6B8F71] text-white"
-                          : "bg-[#F7F3EA]"
-                      }`}
-                    >
-                      {mode === "semaine" ? "Semaine" : "Mois complet"}
-                    </button>
-                  ))}
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    value={enfantsParJour[jour]}
+                    onChange={(e) => modifierNombreEnfants(jour, e.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-[#E8E0D5] p-4 outline-none focus:border-[#6B8F71]"
+                  />
                 </div>
-              </div>
+              ))}
+            </div>
 
-              <div className="mt-6">
-                <p className="mb-3 font-bold">Tranches d’âge présentes</p>
-
-                <div className="flex flex-wrap gap-3">
-                  {(["4-12", "12-18", "18+"] as Age[]).map((age) => (
-                    <button
-                      key={age}
-                      onClick={() => toggleAge(age)}
-                      className={`rounded-full px-5 py-3 font-bold ${
-                        ages[age] ? "bg-[#6B8F71] text-white" : "bg-[#F7F3EA]"
-                      }`}
-                    >
-                      {age === "4-12"
-                        ? "👶 4–12 mois"
-                        : age === "12-18"
-                        ? "🧒 12–18 mois"
-                        : "👧 18 mois et +"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {modePeriode === "semaine" && (
-                <div className="mt-6">
-                  <p className="mb-3 font-bold">Nombre de jours</p>
-
-                  <div className="flex gap-3">
-                    {[3, 5].map((nb) => (
-                      <button
-                        key={nb}
-                        onClick={() => setNombreJours(nb)}
-                        className={`rounded-full px-5 py-3 font-bold ${
-                          nombreJours === nb
-                            ? "bg-[#6B8F71] text-white"
-                            : "bg-[#F7F3EA]"
-                        }`}
-                      >
-                        {nb} jours
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6">
-                <p className="mb-3 font-bold">Préférences</p>
-
-                <div className="flex flex-wrap gap-3">
-                  {(["classique", "sansPorc", "vegetarien"] as Preference[]).map(
-                    (pref) => (
-                      <button
-                        key={pref}
-                        onClick={() => setPreference(pref)}
-                        className={`rounded-full px-5 py-3 font-bold ${
-                          preference === pref
-                            ? "bg-[#6B8F71] text-white"
-                            : "bg-[#F7F3EA]"
-                        }`}
-                      >
-                        {pref === "classique"
-                          ? "Classique"
-                          : pref === "sansPorc"
-                          ? "Sans porc"
-                          : "Végétarien"}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              <button
-                onClick={() =>
-                  setMenus(genererMenu(modePeriode, nombreJours, preference))
-                }
-                className="mt-8 rounded-full bg-[#6B8F71] px-8 py-4 text-lg font-bold text-white"
-              >
-                Générer mon menu ✨
-              </button>
-            </section>
-
-            <aside className="rounded-[2rem] bg-[#E8F2EA] p-8 shadow-sm">
-              <div className="text-6xl">🐨</div>
-
-              <h2 className="mt-5 text-2xl font-bold">Règles intégrées</h2>
-
-              <ul className="mt-4 space-y-3 text-gray-700">
-                <li>✔ Œuf dur maximum 1 fois par semaine</li>
-                <li>✔ Poisson maigre et poisson gras mieux répartis</li>
-                <li>✔ Bœuf et porc possibles selon préférence</li>
-                <li>✔ Option sans porc disponible</li>
-                <li>✔ Avant 12 mois : vapeur, simple, sans sauce</li>
-                <li>✔ Pain beurré au goûter 12–18 mois</li>
-              </ul>
-            </aside>
-          </div>
-
-          {menus.length > 0 && (
             <div className="mt-8 flex flex-wrap gap-3">
               <button
-                onClick={sauvegarderMenu}
-                className="rounded-full bg-[#6B8F71] px-6 py-3 font-bold text-white"
+                onClick={() => setMenus(genererMenus())}
+                className="rounded-full bg-[#6B8F71] px-8 py-4 font-bold text-white"
               >
-                Sauvegarder
+                Générer le menu ✨
               </button>
 
-              <button
-                onClick={imprimerMenu}
-                className="rounded-full bg-white px-6 py-3 font-bold text-[#6B8F71]"
-              >
-                Imprimer
-              </button>
+              {menus.length > 0 && (
+                <button
+                  onClick={imprimer}
+                  className="rounded-full bg-[#F7F3EA] px-8 py-4 font-bold text-[#6B8F71]"
+                >
+                  Imprimer
+                </button>
+              )}
             </div>
-          )}
-
-          <section className="mt-10 grid gap-6">
-            {menus.map((menu, index) => (
-              <div
-                key={menu.jour}
-                className="rounded-[2rem] bg-white p-8 shadow-sm"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-3xl font-bold">{menu.jour}</h2>
-
-                  <span className="rounded-full bg-[#E8F2EA] px-4 py-2 text-sm font-bold text-[#6B8F71]">
-                    {menu.style === "simple"
-                      ? "Repas simple"
-                      : menu.style === "soupe"
-                      ? "Soupe + repas"
-                      : "Plat familial doux"}
-                  </span>
-                </div>
-
-                <div className="mt-6 rounded-3xl bg-[#F8F8F4] p-6">
-                  <p className="font-bold text-[#6B8F71]">Dîner commun</p>
-
-                  <h3 className="mt-3 text-2xl font-bold">{menu.diner.plat}</h3>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-5">
-                    <div>💧 {menu.diner.boisson}</div>
-
-                    <div>
-                      🍚 {menu.diner.feculent}
-                      <button
-                        onClick={() => modifierFeculent(index)}
-                        className="block text-sm font-bold text-[#6B8F71] underline"
-                      >
-                        Modifier
-                      </button>
-                    </div>
-
-                    <div>🥦 {menu.diner.legumes}</div>
-
-                    <div>
-                      🍗 {menu.diner.proteine}
-                      <button
-                        onClick={() => modifierProteine(index)}
-                        className="block text-sm font-bold text-[#6B8F71] underline"
-                      >
-                        Modifier
-                      </button>
-                    </div>
-
-                    <div>🫒 {menu.diner.matiereGrasse}</div>
-                  </div>
-
-                  <p className="mt-5 rounded-2xl bg-white p-4 text-sm text-gray-700">
-                    {menu.diner.remarque}
-                  </p>
-                </div>
-
-                <div className="mt-8 grid gap-4 md:grid-cols-3">
-                  {(["4-12", "12-18", "18+"] as Age[]).map(
-                    (age) =>
-                      ages[age] && (
-                        <div
-                          key={age}
-                          className="rounded-2xl bg-[#F7F3EA] p-5"
-                        >
-                          <p className="font-bold">
-                            {age === "4-12"
-                              ? "👶 4–12 mois"
-                              : age === "12-18"
-                              ? "🧒 12–18 mois"
-                              : "👧 18 mois et +"}
-                          </p>
-
-                          <p className="mt-3 text-sm text-gray-600">
-                            {menu.textures[age]}
-                          </p>
-
-                          <div className="mt-4 rounded-2xl bg-white p-4">
-                            <p className="font-semibold">Quantités de référence</p>
-
-                            <ul className="mt-3 space-y-2 text-sm">
-                              <li>🍚 Féculent : {menu.quantites[age].feculent}</li>
-                              <li>🥦 Légumes : {menu.quantites[age].legumes}</li>
-                              <li>🍗 VVP/O : {menu.quantites[age].proteine}</li>
-                              <li>🫒 MG : {menu.quantites[age].matiereGrasse}</li>
-                            </ul>
-                          </div>
-
-                          <div className="mt-4 rounded-2xl bg-white p-4">
-                            <p className="font-semibold">Goûter</p>
-
-                            {age === "4-12" && (
-                              <>
-                                <p className="mt-2">{menu.gouter.bebe}</p>
-                                <p className="mt-2 text-sm text-gray-500">
-                                  Produit laitier : non nécessaire au goûter.
-                                </p>
-
-                                <button
-                                  onClick={() => modifierCompote(index)}
-                                  className="mt-3 text-sm font-bold text-[#6B8F71] underline"
-                                >
-                                  Modifier compote
-                                </button>
-                              </>
-                            )}
-
-                            {age === "12-18" && (
-                              <>
-                                <p className="mt-2">🍎 {menu.gouter.fruit}</p>
-                                <p className="mt-2">🍞 {menu.gouter.pain1218}</p>
-                                <p className="mt-2 text-sm text-gray-500">
-                                  Produit laitier : non nécessaire au goûter.
-                                </p>
-
-                                <button
-                                  onClick={() => modifierFruit(index)}
-                                  className="mt-3 text-sm font-bold text-[#6B8F71] underline"
-                                >
-                                  Modifier fruits
-                                </button>
-                              </>
-                            )}
-
-                            {age === "18+" && (
-                              <>
-                                <p className="mt-2">🍎 {menu.gouter.fruit}</p>
-                                <p className="mt-2">🍞 {menu.gouter.pain18}</p>
-
-                                {menu.gouter.laitier18 !== "Non nécessaire" && (
-                                  <p className="mt-2">
-                                    🥛 {menu.gouter.laitier18}
-                                  </p>
-                                )}
-
-                                {menu.gouter.laitier18 === "Non nécessaire" && (
-                                  <p className="mt-2 text-sm text-gray-500">
-                                    Produit laitier : non nécessaire ce jour.
-                                  </p>
-                                )}
-
-                                <button
-                                  onClick={() => modifierFruit(index)}
-                                  className="mt-3 text-sm font-bold text-[#6B8F71] underline"
-                                >
-                                  Modifier fruits
-                                </button>
-
-                                <button
-                                  onClick={() => modifierLaitier18(index)}
-                                  className="ml-4 text-sm font-bold text-[#6B8F71] underline"
-                                >
-                                  Modifier laitage
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                  )}
-                </div>
-              </div>
-            ))}
           </section>
+
+          {menus.length > 0 && (
+            <>
+              <section className="mt-10 grid gap-6">
+                {menus.map((menu) => (
+                  <article
+                    key={menu.jour}
+                    className="rounded-[2rem] bg-white p-8 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <h2 className="text-3xl font-bold">{menu.jour}</h2>
+
+                      <span className="rounded-full bg-[#E8F2EA] px-4 py-2 text-sm font-bold text-[#6B8F71]">
+                        {enfantsParJour[menu.jour]} enfant(s)
+                      </span>
+                    </div>
+
+                    <div className="mt-6 grid gap-4 md:grid-cols-4">
+                      <div className="rounded-2xl bg-[#F7F3EA] p-4">
+                        🍚 {menu.diner.feculent}
+                      </div>
+
+                      <div className="rounded-2xl bg-[#F7F3EA] p-4">
+                        🥦 {menu.diner.legumes}
+                      </div>
+
+                      <div className="rounded-2xl bg-[#F7F3EA] p-4">
+                        🍗 {menu.diner.proteine}
+                      </div>
+
+                      <div className="rounded-2xl bg-[#F7F3EA] p-4">
+                        🫒 {menu.diner.matiereGrasse}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 rounded-2xl bg-[#E8F2EA] p-5">
+                      <p className="font-bold">Goûter</p>
+                      <p className="mt-2">👶 4–12 mois : {menu.gouter.bebe}</p>
+                      <p className="mt-2">
+                        🧒 12–18 mois : {menu.gouter.fruit} +{" "}
+                        {menu.gouter.pain1218}
+                      </p>
+                      <p className="mt-2">
+                        👧 18 mois + : {menu.gouter.fruit} + {menu.gouter.pain18}
+                        {menu.gouter.laitier18 !== "Non nécessaire"
+                          ? ` + ${menu.gouter.laitier18}`
+                          : ""}
+                      </p>
+                    </div>
+                  </article>
+                ))}
+              </section>
+
+              <section className="mt-10 rounded-[2rem] bg-white p-8 shadow-sm">
+                <h2 className="text-3xl font-bold">Liste de courses estimative</h2>
+
+                <p className="mt-3 text-gray-600">
+                  Les quantités sont calculées avec une marge pour l’épluchage,
+                  les pertes et la préparation. À ajuster selon les habitudes du
+                  groupe.
+                </p>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <CoursesBloc titre="🥦 Légumes" liste={listeCourses.legumes} />
+                  <CoursesBloc titre="🍚 Féculents" liste={listeCourses.feculents} />
+                  <CoursesBloc titre="🍗 VVP/O" liste={listeCourses.proteines} />
+                  <CoursesBloc titre="🍎 Fruits" liste={listeCourses.fruits} />
+                  <CoursesBloc titre="🧺 Autres" liste={listeCourses.autres} />
+                </div>
+              </section>
+            </>
+          )}
         </section>
 
-        <div className="print-only">
-          <h1>
-            Menus {modePeriode === "mois" ? "du mois" : "de la semaine"}
-          </h1>
-
-          <p>
-            Généré avec Les Petits Koalas — tableau résumé destiné à
-            l’impression.
-          </p>
+        <section className="print-only">
+          <h1>Menu de la semaine</h1>
 
           <table>
             <thead>
               <tr>
                 <th>Jour</th>
-                <th>Type</th>
-                <th>Plat</th>
+                <th>Enfants</th>
                 <th>Féculent</th>
                 <th>Légumes</th>
                 <th>VVP/O</th>
-                <th>MG</th>
-                <th>Goûter 4–12 mois</th>
-                <th>Goûter 12–18 mois</th>
                 <th>Goûter 18 mois +</th>
               </tr>
             </thead>
@@ -920,24 +542,10 @@ export default function GenerateurPage() {
               {menus.map((menu) => (
                 <tr key={menu.jour}>
                   <td>{menu.jour}</td>
-                  <td>
-                    {menu.style === "simple"
-                      ? "Simple"
-                      : menu.style === "soupe"
-                      ? "Soupe"
-                      : "Familial doux"}
-                  </td>
-                  <td>{menu.diner.plat}</td>
+                  <td>{enfantsParJour[menu.jour]}</td>
                   <td>{menu.diner.feculent}</td>
                   <td>{menu.diner.legumes}</td>
                   <td>{menu.diner.proteine}</td>
-                  <td>{menu.diner.matiereGrasse}</td>
-                  <td>{menu.gouter.bebe}</td>
-                  <td>
-                    {menu.gouter.fruit}
-                    <br />
-                    {menu.gouter.pain1218}
-                  </td>
                   <td>
                     {menu.gouter.fruit}
                     <br />
@@ -953,7 +561,31 @@ export default function GenerateurPage() {
               ))}
             </tbody>
           </table>
-        </div>
+
+          <h1 style={{ marginTop: 24 }}>Liste de courses</h1>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Catégorie</th>
+                <th>Aliment</th>
+                <th>Quantité à prévoir</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {Object.entries(listeCourses).flatMap(([categorie, items]) =>
+                Object.entries(items).map(([nom, quantite]) => (
+                  <tr key={`${categorie}-${nom}`}>
+                    <td>{categorie}</td>
+                    <td>{nom}</td>
+                    <td>{afficherQuantite(nom, quantite)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </section>
       </main>
     </>
   );
