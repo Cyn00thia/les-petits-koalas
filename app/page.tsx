@@ -11,6 +11,16 @@ const sections = [
     emoji: "🍽️",
     couleur: "bg-[#E8F0E8]",
   },
+
+  {
+    titre: "Zéro gaspillage",
+    description:
+      "Entrer les aliments restants du frigo et recevoir des idées adaptées aux tout-petits.",
+    lien: "/zero-gaspillage",
+    emoji: "♻️",
+    couleur: "bg-[#E7F4E8]",
+  },
+
   {
     titre: "Recettes & associations",
     description:
@@ -19,6 +29,7 @@ const sections = [
     emoji: "🥦",
     couleur: "bg-[#F4EBDD]",
   },
+
   {
     titre: "Idées d’activités",
     description:
@@ -27,6 +38,7 @@ const sections = [
     emoji: "🎨",
     couleur: "bg-[#E8EDF7]",
   },
+
   {
     titre: "Développement de l’enfant",
     description:
@@ -35,6 +47,7 @@ const sections = [
     emoji: "🧠",
     couleur: "bg-[#EFE4F8]",
   },
+
   {
     titre: "Documents utiles",
     description:
@@ -43,6 +56,7 @@ const sections = [
     emoji: "📄",
     couleur: "bg-[#F7F1DD]",
   },
+
   {
     titre: "Espace parents",
     description:
@@ -50,14 +64,6 @@ const sections = [
     lien: "/parents",
     emoji: "👨‍👩‍👧",
     couleur: "bg-[#E8F2F0]",
-  },
-  {
-    titre: "Zéro gaspillage",
-    description:
-      "Entrer les aliments restants du frigo et recevoir des idées adaptées aux tout-petits.",
-    lien: "/zero-gaspillage",
-    emoji: "♻️",
-    couleur: "bg-[#E7F4E8]",
   },
 ];
 
@@ -106,7 +112,9 @@ export default function HomePage() {
                 {section.emoji}
               </div>
 
-              <h2 className="text-3xl font-bold">{section.titre}</h2>
+              <h2 className="text-3xl font-bold">
+                {section.titre}
+              </h2>
 
               <p className="mt-5 text-lg leading-relaxed text-gray-600">
                 {section.description}
