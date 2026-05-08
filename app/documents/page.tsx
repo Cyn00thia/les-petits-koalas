@@ -10,212 +10,233 @@ type DocumentItem = {
   created_at?: string | null;
 };
 
+const categories = [
+  {
+    id: "documents-utiles",
+    titre: "Documents utiles",
+  },
+  {
+    id: "introduction-alimentaire",
+    titre: "Introduction alimentaire",
+  },
+  {
+    id: "autorisations",
+    titre: "Autorisations",
+  },
+  {
+    id: "fiches-pratiques",
+    titre: "Fiches pratiques",
+  },
+  {
+    id: "menus",
+    titre: "Menus",
+  },
+];
+
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [documents, setDocuments] = useState<
+    Record<string, DocumentItem[]>
+  >({});
   const [file, setFile] = useState<File | null>(null);
   const [categorie, setCategorie] = useState("documents-utiles");
   const [loading, setLoading] = useState(false);
 
   async function chargerDocuments() {
-    const { data, error } = await supabase.storage
-      .from("documents-utiles")
-      .list(categorie, {
-        limit: 100,
-        sortBy: { column: "created_at", order: "desc" },
-      });
+    const nouveauxDocuments: Record<string, DocumentItem[]> = {};
 
-    if (error) {
-      console.error(error);
-      return;
+    for (const cat of categories) {
+      const { data, error } = await supabase.storage
+        .from("documents-utiles")
+        .list(cat.id, {
+          limit: 100,
+        });
+
+      if (!error && data) {
+        nouveauxDocuments[cat.id] = data.map((doc) => ({
+          name: doc.name,
+          url: supabase.storage
+            .from("documents-utiles")
+            .getPublicUrl(`${cat.id}/${doc.name}`).data.publicUrl,
+          created_at: doc.created_at,
+        }));
+      } else {
+        nouveauxDocuments[cat.id] = [];
+      }
     }
 
-    const fichiers =
-      data
-        ?.filter((item) => item.name !== ".emptyFolderPlaceholder")
-        .map((item) => {
-          const path = `${categorie}/${item.name}`;
-
-          const { data: publicUrl } = supabase.storage
-            .from("documents-utiles")
-            .getPublicUrl(path);
-
-          return {
-            name: item.name,
-            url: publicUrl.publicUrl,
-            created_at: item.created_at,
-          };
-        }) ?? [];
-
-    setDocuments(fichiers);
+    setDocuments(nouveauxDocuments);
   }
 
   useEffect(() => {
     chargerDocuments();
-  }, [categorie]);
+  }, []);
 
   async function ajouterDocument() {
     if (!file) {
-      alert("Choisis d’abord un fichier 🙂");
+      alert("Sélectionne un fichier.");
       return;
     }
 
     setLoading(true);
 
-    const extension = file.name.split(".").pop();
-    const nomSansExtension = file.name
-      .replace(`.${extension}`, "")
-      .replaceAll(" ", "-")
-      .toLowerCase();
-
-    const fileName = `${Date.now()}-${nomSansExtension}.${extension}`;
-    const path = `${categorie}/${fileName}`;
+    const chemin = `${categorie}/${Date.now()}-${file.name}`;
 
     const { error } = await supabase.storage
       .from("documents-utiles")
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+      .upload(chemin, file);
+
+    if (error) {
+      console.error(error);
+      alert("Erreur lors de l'ajout du document.");
+    } else {
+      alert("Document ajouté avec succès !");
+      setFile(null);
+      chargerDocuments();
+    }
 
     setLoading(false);
-
-    if (error) {
-      console.error(error);
-      alert("Erreur lors de l’ajout du document.");
-      return;
-    }
-
-    setFile(null);
-    await chargerDocuments();
-    alert("Document ajouté ✅");
   }
 
-  async function supprimerDocument(nom: string) {
-    const ok = confirm("Supprimer ce document ?");
-    if (!ok) return;
+  function obtenirIcone(nom: string) {
+    const extension = nom.split(".").pop()?.toLowerCase();
 
-    const path = `${categorie}/${nom}`;
+    if (extension === "pdf") return "📕";
+    if (extension === "docx" || extension === "doc") return "📘";
+    if (extension === "xlsx") return "📗";
 
-    const { error } = await supabase.storage
-      .from("documents-utiles")
-      .remove([path]);
-
-    if (error) {
-      console.error(error);
-      alert("Erreur lors de la suppression.");
-      return;
-    }
-
-    await chargerDocuments();
+    return "📄";
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F3EA] p-6 text-[#243024] lg:p-10">
-      <section className="mx-auto max-w-7xl">
-        <Link href="/" className="font-bold text-[#6B8F71]">
+    <main className="min-h-screen bg-[#F5F1E8] px-6 py-10">
+      <div className="mx-auto max-w-6xl">
+        <Link
+          href="/"
+          className="mb-8 inline-block text-lg font-medium text-[#6E8B74]"
+        >
           ← Retour à l’accueil
         </Link>
 
-        <div className="mt-6 rounded-[2.5rem] bg-white p-10 shadow-sm">
-          <p className="font-bold uppercase tracking-[0.2em] text-[#6B8F71]">
+        <section className="rounded-[35px] bg-white p-10 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#6E8B74]">
             Documents utiles
           </p>
 
-          <h1 className="mt-5 text-5xl font-bold leading-tight">
+          <h1 className="mt-4 text-6xl font-black leading-none text-[#243126]">
             Fichiers à télécharger
           </h1>
 
-          <p className="mt-4 max-w-3xl text-lg leading-relaxed text-gray-600">
-            Ajoute ici les documents vierges utiles : liste d’introduction
-            alimentaire, autorisation photos, fiches pratiques, modèles à
-            imprimer ou à partager.
+          <p className="mt-8 max-w-4xl text-2xl leading-relaxed text-[#47554A]">
+            Retrouvez ici tous les documents utiles à télécharger,
+            imprimer ou partager.
           </p>
+        </section>
+
+        <div className="mt-10 space-y-8">
+          {categories.map((cat) => (
+            <section
+              key={cat.id}
+              className="rounded-[35px] bg-white p-8 shadow-sm"
+            >
+              <h2 className="text-4xl font-black text-[#243126]">
+                {cat.titre}
+              </h2>
+
+              <div className="mt-6">
+                {documents[cat.id] &&
+                documents[cat.id].length > 0 ? (
+                  <div className="grid gap-4">
+                    {documents[cat.id].map((doc, index) => (
+                      <article
+                        key={index}
+                        className="flex flex-col gap-4 rounded-3xl border border-[#E7E1D4] bg-[#FAF8F2] p-5 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="text-4xl">
+                            {obtenirIcone(doc.name)}
+                          </div>
+
+                          <div>
+                            <p className="text-lg font-bold text-[#243126]">
+                              {doc.name}
+                            </p>
+
+                            <p className="text-sm text-[#6E7B70]">
+                              Téléchargement disponible
+                            </p>
+                          </div>
+                        </div>
+
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full bg-[#6E8B74] px-6 py-3 text-center text-sm font-bold text-white transition hover:opacity-90"
+                        >
+                          Télécharger
+                        </a>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl bg-[#F5F1E8] p-6 text-lg text-[#5E6A60]">
+                    Aucun document dans cette catégorie pour le moment.
+                  </div>
+                )}
+              </div>
+            </section>
+          ))}
         </div>
 
-        <section className="mt-8 rounded-[2rem] bg-white p-8 shadow-sm">
-          <h2 className="text-3xl font-bold">Ajouter un document</h2>
+        <section className="mt-10 rounded-[35px] bg-white p-8 shadow-sm">
+          <h2 className="text-4xl font-black text-[#243126]">
+            Ajouter un document
+          </h2>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+          <div className="mt-8 grid gap-4 md:grid-cols-[1fr_1.5fr_auto]">
             <select
               value={categorie}
               onChange={(e) => setCategorie(e.target.value)}
-              className="rounded-2xl border border-[#E8E0D5] bg-white p-4 outline-none focus:border-[#6B8F71]"
+              className="rounded-2xl border border-[#E5DED0] bg-white px-5 py-4 text-lg outline-none"
             >
-              <option value="documents-utiles">Documents utiles</option>
-              <option value="introduction-alimentaire">
-                Introduction alimentaire
-              </option>
-              <option value="autorisations">Autorisations</option>
-              <option value="fiches-pratiques">Fiches pratiques</option>
-              <option value="menus">Menus</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.titre}
+                </option>
+              ))}
             </select>
 
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="rounded-2xl border border-[#E8E0D5] bg-white p-4 outline-none focus:border-[#6B8F71]"
-            />
+            <label className="flex cursor-pointer items-center rounded-2xl border border-[#E5DED0] bg-white px-5 py-4 text-lg text-[#47554A]">
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) =>
+                  setFile(e.target.files?.[0] || null)
+                }
+              />
+
+              {file
+                ? file.name
+                : "Choisir un fichier"}
+            </label>
 
             <button
               onClick={ajouterDocument}
               disabled={loading}
-              className="rounded-full bg-[#6B8F71] px-8 py-4 font-bold text-white disabled:opacity-50"
+              className="rounded-full bg-[#6E8B74] px-8 py-4 text-lg font-bold text-white transition hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Ajout..." : "Ajouter"}
             </button>
           </div>
 
           {file && (
-            <p className="mt-4 rounded-2xl bg-[#F7F3EA] p-4 text-sm text-gray-700">
-              Fichier sélectionné : <strong>{file.name}</strong>
-            </p>
+            <div className="mt-5 rounded-2xl bg-[#F5F1E8] p-4 text-lg text-[#243126]">
+              Fichier sélectionné :{" "}
+              <span className="font-bold">{file.name}</span>
+            </div>
           )}
         </section>
-
-        <section className="mt-10 rounded-[2rem] bg-white p-8 shadow-sm">
-          <h2 className="text-3xl font-bold">Documents disponibles</h2>
-
-          {documents.length === 0 && (
-            <p className="mt-5 rounded-2xl bg-[#F7F3EA] p-5 text-gray-600">
-              Aucun document dans cette catégorie pour le moment.
-            </p>
-          )}
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {documents.map((doc) => (
-              <article
-                key={doc.name}
-                className="rounded-2xl bg-[#F7F3EA] p-5"
-              >
-                <div className="text-4xl">📄</div>
-
-                <h3 className="mt-4 break-words text-xl font-bold">
-                  {doc.name}
-                </h3>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <a
-                    href={doc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full bg-[#6B8F71] px-5 py-3 text-sm font-bold text-white"
-                  >
-                    Ouvrir / télécharger
-                  </a>
-
-                  <button
-                    onClick={() => supprimerDocument(doc.name)}
-                    className="rounded-full bg-red-50 px-5 py-3 text-sm font-bold text-red-500"
-                  >
-                    Supprimer
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      </section>
+      </div>
     </main>
   );
 }
