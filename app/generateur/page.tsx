@@ -65,6 +65,8 @@ const saisons: Record<Saison, {
       "Soupe brocoli-courgette",
       "Soupe petits pois-carotte",
       "Soupe fenouil-carotte",
+      "Soupe courgette-haricots verts",
+      "Soupe chou-fleur-pomme de terre",
     ],
     fruits: [
       "Pomme + poire",
@@ -91,6 +93,8 @@ const saisons: Record<Saison, {
       "Soupe tomate douce-carotte",
       "Soupe courgette-carotte",
       "Soupe haricots verts-pomme de terre",
+      "Soupe aubergine-courgette",
+      "Soupe petits pois-carotte",
     ],
     fruits: [
       "Pêche + pomme",
@@ -117,6 +121,8 @@ const saisons: Record<Saison, {
       "Soupe carotte-potiron",
       "Soupe brocoli-courgette",
       "Soupe chou-fleur-carotte",
+      "Soupe butternut-pomme de terre",
+      "Soupe poireau-carotte",
     ],
     fruits: [
       "Pomme + poire",
@@ -144,6 +150,8 @@ const saisons: Record<Saison, {
       "Soupe carotte-butternut",
       "Soupe chou-fleur-carotte",
       "Soupe potiron-carotte",
+      "Soupe brocoli-pomme de terre",
+      "Soupe fenouil-carotte",
     ],
     fruits: [
       "Pomme + poire",
@@ -260,9 +268,12 @@ const conversionCru: Record<string, number> = {
   Butternut: 1.1,
   Potiron: 1.1,
   "Haricots verts": 1.1,
+  "Tomate douce": 1.1,
   "Tomate cuite douce": 1.1,
   Aubergine: 1.07,
+  "Poivron doux": 1.15,
   "Poivron doux cuit": 1.15,
+  "Concombre doux": 1.15,
   "Concombre cuit doux": 1.15,
   "Céleri rave": 1.16,
 };
@@ -275,6 +286,27 @@ function saisonActuelle(): Saison {
   return "hiver";
 }
 
+function nettoyerLegume(nom: string) {
+  return nom
+    .replaceAll("Soupe", "")
+    .replaceAll("soupe", "")
+    .replaceAll("cuite", "")
+    .replaceAll("cuit", "")
+    .replaceAll("douce", "")
+    .replaceAll("doux", "")
+    .replaceAll("  ", " ")
+    .trim();
+}
+
+function elementsDepuisTexte(texte: string) {
+  return texte
+    .replaceAll("Soupe", "")
+    .replaceAll("soupe", "")
+    .split(/[-+]/)
+    .map((item) => nettoyerLegume(item.trim()))
+    .filter(Boolean);
+}
+
 function prendreDifferent(liste: string[], actuel: string) {
   const possibles = liste.filter((item) => item !== actuel);
   return possibles[Math.floor(Math.random() * possibles.length)] ?? liste[0];
@@ -283,14 +315,21 @@ function prendreDifferent(liste: string[], actuel: string) {
 function choisirSansRepetition(
   liste: string[],
   utilises: Set<string>,
-  interditCourt: Set<string>
+  interdits: Set<string>
 ) {
-  let possibles = liste.filter(
-    (item) => !utilises.has(item) && !interditCourt.has(item)
-  );
+  let possibles = liste.filter((item) => {
+    const elements = elementsDepuisTexte(item);
+    return (
+      !utilises.has(item) &&
+      elements.every((element) => !interdits.has(element))
+    );
+  });
 
   if (possibles.length === 0) {
-    possibles = liste.filter((item) => !interditCourt.has(item));
+    possibles = liste.filter((item) => {
+      const elements = elementsDepuisTexte(item);
+      return elements.every((element) => !interdits.has(element));
+    });
   }
 
   if (possibles.length === 0) {
@@ -302,13 +341,30 @@ function choisirSansRepetition(
   return choix;
 }
 
-function elementsDepuisTexte(texte: string) {
-  return texte
-    .replaceAll("Soupe", "")
-    .replaceAll("soupe", "")
-    .split(/[-+]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function choisirSoupeSansRepeter(
+  soupes: string[],
+  utilisesSoupes: Set<string>,
+  legumesDerniersJours: Set<string>
+) {
+  let possibles = soupes.filter((soupe) => {
+    const legumesSoupe = elementsDepuisTexte(soupe);
+    return (
+      !utilisesSoupes.has(soupe) &&
+      legumesSoupe.every((legume) => !legumesDerniersJours.has(legume))
+    );
+  });
+
+  if (possibles.length === 0) {
+    possibles = soupes.filter((soupe) => !utilisesSoupes.has(soupe));
+  }
+
+  if (possibles.length === 0) {
+    possibles = soupes;
+  }
+
+  const choix = possibles[Math.floor(Math.random() * possibles.length)];
+  utilisesSoupes.add(choix);
+  return choix;
 }
 
 function ajouter(liste: Record<string, number>, nom: string, quantite: number) {
@@ -354,7 +410,6 @@ function genererMenu(
 ): MenuJour[] {
   const total = mode === "mois" ? 20 : nombreJours;
   const dataSaison = saisons[saison];
-
   const menus: MenuJour[] = [];
 
   for (let semaineIndex = 0; semaineIndex < Math.ceil(total / 5); semaineIndex++) {
@@ -370,17 +425,24 @@ function genererMenu(
       const jourCourt = joursSemaine[jourIndex];
       const jour = mode === "mois" ? `Semaine ${semaine} - ${jourCourt}` : jourCourt;
 
-      const jourSoupe = jourIndex === 1 || (mode === "mois" && jourIndex === 4 && semaine % 2 === 0);
-      const soupe = jourSoupe
-        ? choisirSansRepetition(dataSaison.soupes, utilisesSoupes, legumesDerniersJours)
-        : "";
+      // Soupe prévue tous les jours, mais uniquement proposée aux enfants de 12 mois et plus.
+      const soupe = choisirSoupeSansRepeter(
+        dataSaison.soupes,
+        utilisesSoupes,
+        legumesDerniersJours
+      );
 
       const legumesSoupe = new Set(elementsDepuisTexte(soupe));
+
+      const legumesInterdits = new Set([
+        ...legumesDerniersJours,
+        ...legumesSoupe,
+      ]);
 
       const legume1 = choisirSansRepetition(
         dataSaison.legumes,
         utilisesLegumes,
-        new Set([...legumesDerniersJours, ...legumesSoupe])
+        legumesInterdits
       );
 
       let legumesRepas = legume1;
@@ -389,7 +451,10 @@ function genererMenu(
         const legume2 = choisirSansRepetition(
           dataSaison.legumes,
           utilisesLegumes,
-          new Set([...legumesDerniersJours, ...legumesSoupe, legume1])
+          new Set([
+            ...legumesInterdits,
+            ...elementsDepuisTexte(legume1),
+          ])
         );
 
         if (legume2 !== legume1) {
@@ -420,16 +485,13 @@ function genererMenu(
         soupe,
         diner: {
           boisson: "Eau",
-          plat: jourSoupe ? "Repas avec soupe séparée" : index % 5 === 3 ? "Plat doux adapté" : "Repas simple",
+          plat: "Repas avec soupe séparée",
           feculent,
           legumes: legumesRepas,
           proteine,
           matiereGrasse: matieresGrasses[index % matieresGrasses.length],
-          remarque: jourSoupe
-            ? "Soupe proposée uniquement aux enfants de 12 mois et +. Pour les moins de 12 mois : repas vapeur/mixé simple, sans soupe."
-            : index % 5 === 3
-            ? "Plat plus construit uniquement si la texture est adaptée. Avant 12 mois : version simple séparée."
-            : "Repas simple : féculent + légume + VVP/O + matière grasse.",
+          remarque:
+            "Soupe proposée uniquement aux enfants de 12 mois et +. Pour les moins de 12 mois : repas vapeur/mixé simple, sans soupe.",
         },
         gouter: {
           bebe: compotesBebe[index % compotesBebe.length],
@@ -569,9 +631,15 @@ export default function GenerateurPage() {
       const dataSaison = saisons[saison];
 
       if (champ === "soupe") {
-        menu.soupe = menu.soupe
-          ? prendreDifferent(dataSaison.soupes, menu.soupe)
-          : dataSaison.soupes[0];
+        const legumesRepas = new Set(elementsDepuisTexte(menu.diner.legumes));
+        const soupesPossibles = dataSaison.soupes.filter((soupe) =>
+          elementsDepuisTexte(soupe).every((legume) => !legumesRepas.has(legume))
+        );
+
+        menu.soupe = prendreDifferent(
+          soupesPossibles.length > 0 ? soupesPossibles : dataSaison.soupes,
+          menu.soupe
+        );
         menu.diner.remarque =
           "Soupe proposée uniquement aux enfants de 12 mois et +. Pour les moins de 12 mois : repas vapeur/mixé simple, sans soupe.";
       }
@@ -581,13 +649,14 @@ export default function GenerateurPage() {
       }
 
       if (champ === "legumes") {
-        const liste = [
-          ...dataSaison.legumes,
-          `${dataSaison.legumes[0]} + ${dataSaison.legumes[1]}`,
-          `${dataSaison.legumes[2]} + ${dataSaison.legumes[3]}`,
-        ];
+        const legumesSoupe = new Set(elementsDepuisTexte(menu.soupe));
+        const liste = dataSaison.legumes.filter((legume) => {
+          const elements = elementsDepuisTexte(legume);
+          return elements.every((element) => !legumesSoupe.has(element));
+        });
 
-        menu.diner.legumes = prendreDifferent(liste, menu.diner.legumes);
+        const base = liste.length > 0 ? liste : dataSaison.legumes;
+        menu.diner.legumes = prendreDifferent(base, menu.diner.legumes);
       }
 
       if (champ === "proteine") {
@@ -709,8 +778,8 @@ export default function GenerateurPage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-relaxed text-gray-600">
-              Génère des menus plus variés, avec légumes de saison, soupe séparée
-              et liste de courses calculée en poids cru à acheter.
+              Génère des menus plus variés, avec soupe séparée tous les jours,
+              légumes de saison et liste de courses calculée en poids cru à acheter.
             </p>
           </div>
 
@@ -866,7 +935,7 @@ export default function GenerateurPage() {
                         </div>
 
                         <div>
-                          🍲 {menu.soupe || "Pas de soupe"}
+                          🍲 {menu.soupe}
                           <button onClick={() => modifier(menu.index, "soupe")} className="block text-sm font-bold text-[#6B8F71] underline">
                             Modifier soupe
                           </button>
@@ -1003,7 +1072,7 @@ export default function GenerateurPage() {
               {menus.map((menu) => (
                 <tr key={menu.index}>
                   <td>{menu.jour}</td>
-                  <td>{menu.soupe || "-"}</td>
+                  <td>{menu.soupe}</td>
                   <td>{menu.diner.feculent}</td>
                   <td>{menu.diner.legumes}</td>
                   <td>{menu.diner.proteine}</td>
