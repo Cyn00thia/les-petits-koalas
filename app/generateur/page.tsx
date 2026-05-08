@@ -3,14 +3,17 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+type Age = "4-12" | "12-18" | "18+";
 type Preference = "classique" | "sansPorc" | "vegetarien";
 type ModePeriode = "semaine" | "mois";
+type Saison = "printemps" | "ete" | "automne" | "hiver";
 
 type MenuJour = {
   index: number;
   semaine: number;
   jourCourt: string;
   jour: string;
+  soupe: string;
   diner: {
     boisson: string;
     plat: string;
@@ -30,6 +33,7 @@ type MenuJour = {
 };
 
 type ListeCourses = {
+  soupes: Record<string, number>;
   legumes: Record<string, number>;
   feculents: Record<string, number>;
   proteines: Record<string, number>;
@@ -39,64 +43,167 @@ type ListeCourses = {
 
 const joursSemaine = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
 
-const feculents = [
+const saisons: Record<Saison, {
+  legumes: string[];
+  soupes: string[];
+  fruits: string[];
+}> = {
+  printemps: {
+    legumes: [
+      "Carotte",
+      "Courgette",
+      "Brocoli",
+      "Petits pois",
+      "Haricots verts",
+      "Épinard",
+      "Fenouil",
+      "Chou-fleur",
+      "Betterave",
+    ],
+    soupes: [
+      "Soupe carotte-courgette",
+      "Soupe brocoli-courgette",
+      "Soupe petits pois-carotte",
+      "Soupe fenouil-carotte",
+    ],
+    fruits: [
+      "Pomme + poire",
+      "Banane + pomme",
+      "Pomme + fraise",
+      "Poire + kiwi",
+      "Banane + fraise",
+    ],
+  },
+  ete: {
+    legumes: [
+      "Courgette",
+      "Tomate cuite douce",
+      "Aubergine",
+      "Haricots verts",
+      "Carotte",
+      "Brocoli",
+      "Petits pois",
+      "Poivron doux cuit",
+      "Concombre cuit doux",
+    ],
+    soupes: [
+      "Soupe courgette-pomme de terre",
+      "Soupe tomate douce-carotte",
+      "Soupe courgette-carotte",
+      "Soupe haricots verts-pomme de terre",
+    ],
+    fruits: [
+      "Pêche + pomme",
+      "Abricot + pomme",
+      "Banane + pêche",
+      "Pomme + fraise",
+      "Poire + abricot",
+    ],
+  },
+  automne: {
+    legumes: [
+      "Carotte",
+      "Butternut",
+      "Potiron",
+      "Poireau",
+      "Brocoli",
+      "Chou-fleur",
+      "Courgette",
+      "Épinard",
+      "Betterave",
+    ],
+    soupes: [
+      "Soupe poireau-butternut",
+      "Soupe carotte-potiron",
+      "Soupe brocoli-courgette",
+      "Soupe chou-fleur-carotte",
+    ],
+    fruits: [
+      "Pomme + poire",
+      "Banane + pomme",
+      "Poire + kiwi",
+      "Pomme + prune",
+      "Compote pomme-poire",
+    ],
+  },
+  hiver: {
+    legumes: [
+      "Carotte",
+      "Poireau",
+      "Chou-fleur",
+      "Brocoli",
+      "Potiron",
+      "Butternut",
+      "Épinard",
+      "Fenouil",
+      "Céleri rave",
+      "Betterave",
+    ],
+    soupes: [
+      "Soupe poireau-pomme de terre",
+      "Soupe carotte-butternut",
+      "Soupe chou-fleur-carotte",
+      "Soupe potiron-carotte",
+    ],
+    fruits: [
+      "Pomme + poire",
+      "Banane + pomme",
+      "Poire + mandarine",
+      "Pomme + kiwi",
+      "Compote pomme-banane",
+    ],
+  },
+};
+
+const feculentsSemaine = [
   "Pommes de terre",
-  "Patate douce",
   "Riz",
+  "Patate douce",
   "Pâtes",
+  "Pommes de terre",
+];
+
+const alternativesFeculents = [
   "Semoule",
   "Quinoa",
   "Boulgour",
   "Polenta",
-];
-
-const legumes = [
-  "Carotte",
-  "Courgette",
-  "Brocoli",
-  "Haricots verts",
-  "Chou-fleur",
-  "Épinard",
-  "Poireau",
-  "Potiron",
-  "Butternut",
-  "Petits pois",
-  "Fenouil",
-  "Betterave",
-];
-
-const associationsLegumes = [
-  "Carotte + courgette",
-  "Brocoli + courgette",
-  "Poireau + butternut",
-  "Carotte + chou-fleur",
-  "Courgette + tomate cuite douce",
-  "Potiron + carotte",
-];
-
-const soupes = [
-  "Soupe poireau + butternut",
-  "Soupe carotte + potiron",
-  "Soupe courgette + pomme de terre",
-  "Soupe brocoli + courgette",
+  "Riz",
+  "Pâtes",
+  "Pommes de terre",
+  "Patate douce",
 ];
 
 const matieresGrasses = ["Huile de colza", "Huile d’olive", "Beurre"];
 
-const compotesBebe = [
-  "Compote pomme-banane-poire",
-  "Compote pomme-poire",
-  "Compote banane-fraise-pomme",
-  "Compote pomme-abricot",
-  "Compote poire-banane-kiwi",
+const proteinesClassiques = [
+  "Cabillaud",
+  "Poulet",
+  "Œuf dur",
+  "Saumon",
+  "Bœuf",
+  "Dinde",
+  "Colin",
+  "Truite",
+  "Porc",
 ];
 
-const fruitsGouter = [
-  "Pomme + poire",
-  "Banane + pomme",
-  "Poire + kiwi",
-  "Pomme + fraise",
-  "Banane + pêche",
+const proteinesSansPorc = [
+  "Cabillaud",
+  "Poulet",
+  "Œuf dur",
+  "Saumon",
+  "Bœuf",
+  "Dinde",
+  "Colin",
+  "Truite",
+];
+
+const proteinesVegetariennes = [
+  "Repas végétarien",
+  "Œuf dur",
+  "Repas végétarien",
+  "Galette de légumes adaptée",
 ];
 
 const laitages18 = [
@@ -110,6 +217,15 @@ const laitages18 = [
   "Fromage frais",
 ];
 
+const compotesBebe = [
+  "Compote pomme-poire",
+  "Compote pomme-banane",
+  "Compote poire-banane",
+  "Compote pomme-abricot",
+  "Compote pomme-pêche",
+  "Compote poire-kiwi",
+];
+
 const conversionCru: Record<string, number> = {
   "Pommes de terre": 1,
   "Patate douce": 1,
@@ -119,6 +235,7 @@ const conversionCru: Record<string, number> = {
   Quinoa: 0.4,
   Boulgour: 0.4,
   Polenta: 0.4,
+
   Poulet: 1.2,
   Dinde: 1.2,
   Cabillaud: 1.18,
@@ -128,6 +245,9 @@ const conversionCru: Record<string, number> = {
   Bœuf: 1.18,
   Porc: 1.43,
   "Œuf dur": 1,
+  "Repas végétarien": 1.25,
+  "Galette de légumes adaptée": 1.25,
+
   Carotte: 1.1,
   Courgette: 1.16,
   Brocoli: 1.06,
@@ -140,11 +260,55 @@ const conversionCru: Record<string, number> = {
   Butternut: 1.1,
   Potiron: 1.1,
   "Haricots verts": 1.1,
+  "Tomate cuite douce": 1.1,
+  Aubergine: 1.07,
+  "Poivron doux cuit": 1.15,
+  "Concombre cuit doux": 1.15,
+  "Céleri rave": 1.16,
 };
+
+function saisonActuelle(): Saison {
+  const mois = new Date().getMonth() + 1;
+  if ([3, 4, 5].includes(mois)) return "printemps";
+  if ([6, 7, 8].includes(mois)) return "ete";
+  if ([9, 10, 11].includes(mois)) return "automne";
+  return "hiver";
+}
 
 function prendreDifferent(liste: string[], actuel: string) {
   const possibles = liste.filter((item) => item !== actuel);
   return possibles[Math.floor(Math.random() * possibles.length)] ?? liste[0];
+}
+
+function choisirSansRepetition(
+  liste: string[],
+  utilises: Set<string>,
+  interditCourt: Set<string>
+) {
+  let possibles = liste.filter(
+    (item) => !utilises.has(item) && !interditCourt.has(item)
+  );
+
+  if (possibles.length === 0) {
+    possibles = liste.filter((item) => !interditCourt.has(item));
+  }
+
+  if (possibles.length === 0) {
+    possibles = liste;
+  }
+
+  const choix = possibles[Math.floor(Math.random() * possibles.length)];
+  utilises.add(choix);
+  return choix;
+}
+
+function elementsDepuisTexte(texte: string) {
+  return texte
+    .replaceAll("Soupe", "")
+    .replaceAll("soupe", "")
+    .split(/[-+]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function ajouter(liste: Record<string, number>, nom: string, quantite: number) {
@@ -155,34 +319,12 @@ function convertirEnCru(nom: string, poidsCuit: number) {
   return poidsCuit * (conversionCru[nom] ?? 1.25);
 }
 
-function extraire(texte: string) {
-  return texte
-    .replaceAll("Soupe", "")
-    .split("+")
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
-
-function choisirFeculent(index: number) {
-  const semaine = Math.floor(index / 5);
-  const autres = [
-    ["Riz", "Pâtes"],
-    ["Semoule", "Quinoa"],
-    ["Boulgour", "Polenta"],
-    ["Riz", "Semoule"],
-  ][semaine % 4];
-
-  return ["Pommes de terre", autres[0], "Patate douce", autres[1], "Pommes de terre"][
-    index % 5
-  ];
-}
-
 function choisirProteine(index: number, preference: Preference) {
   const semaine = Math.floor(index / 5);
   const jour = index % 5;
 
   if (preference === "vegetarien") {
-    return ["Repas végétarien", "Œuf dur", "Repas végétarien", "Repas végétarien", "Repas végétarien"][jour];
+    return proteinesVegetariennes[jour % proteinesVegetariennes.length];
   }
 
   if (preference === "sansPorc") {
@@ -204,57 +346,103 @@ function choisirProteine(index: number, preference: Preference) {
   ][jour];
 }
 
-function genererMenu(mode: ModePeriode, nombreJours: number, preference: Preference): MenuJour[] {
+function genererMenu(
+  mode: ModePeriode,
+  nombreJours: number,
+  preference: Preference,
+  saison: Saison
+): MenuJour[] {
   const total = mode === "mois" ? 20 : nombreJours;
+  const dataSaison = saisons[saison];
 
-  return Array.from({ length: total }, (_, index) => {
-    const semaine = Math.floor(index / 5) + 1;
-    const jourCourt = joursSemaine[index % 5];
-    const jour = mode === "mois" ? `Semaine ${semaine} - ${jourCourt}` : jourCourt;
+  const menus: MenuJour[] = [];
 
-    const style = index % 5 === 1 ? "soupe" : index % 5 === 3 ? "plat" : "simple";
+  for (let semaineIndex = 0; semaineIndex < Math.ceil(total / 5); semaineIndex++) {
+    const utilisesLegumes = new Set<string>();
+    const utilisesSoupes = new Set<string>();
+    const legumesDerniersJours = new Set<string>();
 
-    let plat = "Repas simple";
-    let legumesRepas = legumes[index % legumes.length];
-    let remarque = "Repas simple : féculent + légume + VVP/O + matière grasse.";
+    for (let jourIndex = 0; jourIndex < 5; jourIndex++) {
+      const index = semaineIndex * 5 + jourIndex;
+      if (index >= total) break;
 
-    if (style === "soupe") {
-      plat = soupes[index % soupes.length];
-      legumesRepas = `${plat} + ${associationsLegumes[index % associationsLegumes.length]}`;
-      remarque = "Soupe possible. Avant 12 mois : version vapeur/mixée simple, sans sauce.";
+      const semaine = semaineIndex + 1;
+      const jourCourt = joursSemaine[jourIndex];
+      const jour = mode === "mois" ? `Semaine ${semaine} - ${jourCourt}` : jourCourt;
+
+      const jourSoupe = jourIndex === 1 || (mode === "mois" && jourIndex === 4 && semaine % 2 === 0);
+      const soupe = jourSoupe
+        ? choisirSansRepetition(dataSaison.soupes, utilisesSoupes, legumesDerniersJours)
+        : "";
+
+      const legumesSoupe = new Set(elementsDepuisTexte(soupe));
+
+      const legume1 = choisirSansRepetition(
+        dataSaison.legumes,
+        utilisesLegumes,
+        new Set([...legumesDerniersJours, ...legumesSoupe])
+      );
+
+      let legumesRepas = legume1;
+
+      if (index % 3 === 0) {
+        const legume2 = choisirSansRepetition(
+          dataSaison.legumes,
+          utilisesLegumes,
+          new Set([...legumesDerniersJours, ...legumesSoupe, legume1])
+        );
+
+        if (legume2 !== legume1) {
+          legumesRepas = `${legume1} + ${legume2}`;
+        }
+      }
+
+      legumesDerniersJours.clear();
+      elementsDepuisTexte(legumesRepas).forEach((l) => legumesDerniersJours.add(l));
+      elementsDepuisTexte(soupe).forEach((l) => legumesDerniersJours.add(l));
+
+      const feculent =
+        jourIndex === 0 || jourIndex === 2 || jourIndex === 4
+          ? feculentsSemaine[jourIndex]
+          : semaineIndex % 2 === 0
+          ? feculentsSemaine[jourIndex]
+          : alternativesFeculents[(semaineIndex + jourIndex) % alternativesFeculents.length];
+
+      const proteine = choisirProteine(index, preference);
+      const laitier18 = laitages18[index % laitages18.length];
+      const fruit = dataSaison.fruits[index % dataSaison.fruits.length];
+
+      menus.push({
+        index,
+        semaine,
+        jourCourt,
+        jour,
+        soupe,
+        diner: {
+          boisson: "Eau",
+          plat: jourSoupe ? "Repas avec soupe séparée" : index % 5 === 3 ? "Plat doux adapté" : "Repas simple",
+          feculent,
+          legumes: legumesRepas,
+          proteine,
+          matiereGrasse: matieresGrasses[index % matieresGrasses.length],
+          remarque: jourSoupe
+            ? "Soupe proposée uniquement aux enfants de 12 mois et +. Pour les moins de 12 mois : repas vapeur/mixé simple, sans soupe."
+            : index % 5 === 3
+            ? "Plat plus construit uniquement si la texture est adaptée. Avant 12 mois : version simple séparée."
+            : "Repas simple : féculent + légume + VVP/O + matière grasse.",
+        },
+        gouter: {
+          bebe: compotesBebe[index % compotesBebe.length],
+          fruit,
+          pain1218: "Pain beurré",
+          pain18: laitier18 === "Fromage" ? "Pain" : "Pain beurré",
+          laitier18,
+        },
+      });
     }
+  }
 
-    if (style === "plat") {
-      plat = index % 2 === 0 ? "Pâtes sauce légumes maison" : "Couscous doux adapté";
-      legumesRepas = associationsLegumes[index % associationsLegumes.length];
-      remarque = "Plat plus construit uniquement pour les 12 mois et +.";
-    }
-
-    const laitier18 = laitages18[index % laitages18.length];
-
-    return {
-      index,
-      semaine,
-      jourCourt,
-      jour,
-      diner: {
-        boisson: "Eau",
-        plat,
-        feculent: choisirFeculent(index),
-        legumes: legumesRepas,
-        proteine: choisirProteine(index, preference),
-        matiereGrasse: index % 2 === 0 ? "Huile de colza" : "Huile d’olive",
-        remarque,
-      },
-      gouter: {
-        bebe: compotesBebe[index % compotesBebe.length],
-        fruit: fruitsGouter[index % fruitsGouter.length],
-        pain1218: "Pain beurré",
-        pain18: laitier18 === "Fromage" ? "Pain" : "Pain beurré",
-        laitier18,
-      },
-    };
-  });
+  return menus;
 }
 
 function calculerCourses(menus: MenuJour[], enfantsParJour: Record<string, number>) {
@@ -266,6 +454,7 @@ function calculerCourses(menus: MenuJour[], enfantsParJour: Record<string, numbe
 
     if (!result[menu.semaine]) {
       result[menu.semaine] = {
+        soupes: {},
         legumes: {},
         feculents: {},
         proteines: {},
@@ -276,7 +465,13 @@ function calculerCourses(menus: MenuJour[], enfantsParJour: Record<string, numbe
 
     const liste = result[menu.semaine];
 
-    extraire(menu.diner.legumes).forEach((legume) => {
+    if (menu.soupe) {
+      elementsDepuisTexte(menu.soupe).forEach((legume) => {
+        ajouter(liste.soupes, legume, convertirEnCru(legume, nb * 80));
+      });
+    }
+
+    elementsDepuisTexte(menu.diner.legumes).forEach((legume) => {
       ajouter(liste.legumes, legume, convertirEnCru(legume, nb * 120));
     });
 
@@ -288,7 +483,10 @@ function calculerCourses(menus: MenuJour[], enfantsParJour: Record<string, numbe
     });
 
     ajouter(liste.autres, "Pain", nb * 40);
-    ajouter(liste.autres, "Beurre", nb * 8);
+
+    if (menu.gouter.pain1218.includes("beurré") || menu.gouter.pain18.includes("beurré")) {
+      ajouter(liste.autres, "Beurre", nb * 8);
+    }
 
     if (menu.gouter.laitier18 === "Verre de lait") {
       ajouter(liste.autres, "Lait", nb * 150);
@@ -339,7 +537,13 @@ export default function GenerateurPage() {
   const [mode, setMode] = useState<ModePeriode>("semaine");
   const [nombreJours, setNombreJours] = useState(5);
   const [preference, setPreference] = useState<Preference>("classique");
+  const [saison, setSaison] = useState<Saison>(saisonActuelle());
   const [menus, setMenus] = useState<MenuJour[]>([]);
+  const [ages, setAges] = useState<Record<Age, boolean>>({
+    "4-12": true,
+    "12-18": true,
+    "18+": true,
+  });
 
   const [enfantsParJour, setEnfantsParJour] = useState<Record<string, number>>({
     Lundi: 0,
@@ -354,32 +558,73 @@ export default function GenerateurPage() {
     [menus, enfantsParJour]
   );
 
-  function modifier(index: number, champ: "feculent" | "legumes" | "proteine" | "matiereGrasse") {
+  function toggleAge(age: Age) {
+    setAges((prev) => ({ ...prev, [age]: !prev[age] }));
+  }
+
+  function modifier(index: number, champ: "soupe" | "feculent" | "legumes" | "proteine" | "matiereGrasse") {
     setMenus((prev) => {
       const copie = [...prev];
       const menu = copie[index];
+      const dataSaison = saisons[saison];
+
+      if (champ === "soupe") {
+        menu.soupe = menu.soupe
+          ? prendreDifferent(dataSaison.soupes, menu.soupe)
+          : dataSaison.soupes[0];
+        menu.diner.remarque =
+          "Soupe proposée uniquement aux enfants de 12 mois et +. Pour les moins de 12 mois : repas vapeur/mixé simple, sans soupe.";
+      }
 
       if (champ === "feculent") {
-        menu.diner.feculent = prendreDifferent(feculents, menu.diner.feculent);
+        menu.diner.feculent = prendreDifferent(alternativesFeculents, menu.diner.feculent);
       }
 
       if (champ === "legumes") {
-        menu.diner.legumes = prendreDifferent([...legumes, ...associationsLegumes], menu.diner.legumes);
+        const liste = [
+          ...dataSaison.legumes,
+          `${dataSaison.legumes[0]} + ${dataSaison.legumes[1]}`,
+          `${dataSaison.legumes[2]} + ${dataSaison.legumes[3]}`,
+        ];
+
+        menu.diner.legumes = prendreDifferent(liste, menu.diner.legumes);
       }
 
       if (champ === "proteine") {
         const liste =
           preference === "vegetarien"
-            ? ["Repas végétarien", "Œuf dur"]
+            ? proteinesVegetariennes
             : preference === "sansPorc"
-            ? ["Cabillaud", "Colin", "Saumon", "Truite", "Poulet", "Dinde", "Bœuf", "Œuf dur"]
-            : ["Cabillaud", "Colin", "Saumon", "Truite", "Poulet", "Dinde", "Bœuf", "Porc", "Œuf dur"];
+            ? proteinesSansPorc
+            : proteinesClassiques;
 
         menu.diner.proteine = prendreDifferent(liste, menu.diner.proteine);
       }
 
       if (champ === "matiereGrasse") {
         menu.diner.matiereGrasse = prendreDifferent(matieresGrasses, menu.diner.matiereGrasse);
+      }
+
+      return [...copie];
+    });
+  }
+
+  function modifierGouter(index: number, champ: "fruit" | "laitier" | "bebe") {
+    setMenus((prev) => {
+      const copie = [...prev];
+      const menu = copie[index];
+
+      if (champ === "fruit") {
+        menu.gouter.fruit = prendreDifferent(saisons[saison].fruits, menu.gouter.fruit);
+      }
+
+      if (champ === "bebe") {
+        menu.gouter.bebe = prendreDifferent(compotesBebe, menu.gouter.bebe);
+      }
+
+      if (champ === "laitier") {
+        menu.gouter.laitier18 = prendreDifferent(laitages18, menu.gouter.laitier18);
+        menu.gouter.pain18 = menu.gouter.laitier18 === "Fromage" ? "Pain" : "Pain beurré";
       }
 
       return [...copie];
@@ -460,12 +705,12 @@ export default function GenerateurPage() {
             </p>
 
             <h1 className="mt-5 text-5xl font-bold leading-tight">
-              Menus & liste de courses
+              Menus de saison & liste de courses
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-relaxed text-gray-600">
-              Génère une semaine ou un mois de repas variés, puis calcule la liste
-              de courses en poids cru à acheter.
+              Génère des menus plus variés, avec légumes de saison, soupe séparée
+              et liste de courses calculée en poids cru à acheter.
             </p>
           </div>
 
@@ -508,6 +753,46 @@ export default function GenerateurPage() {
               </div>
             )}
 
+            <div className="mt-6">
+              <p className="mb-3 font-bold">Saison</p>
+
+              <div className="flex flex-wrap gap-3">
+                {(["printemps", "ete", "automne", "hiver"] as Saison[]).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSaison(s)}
+                    className={`rounded-full px-5 py-3 font-bold ${
+                      saison === s ? "bg-[#6B8F71] text-white" : "bg-[#F7F3EA]"
+                    }`}
+                  >
+                    {s === "ete" ? "Été" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="mb-3 font-bold">Tranches d’âge présentes</p>
+
+              <div className="flex flex-wrap gap-3">
+                {(["4-12", "12-18", "18+"] as Age[]).map((age) => (
+                  <button
+                    key={age}
+                    onClick={() => toggleAge(age)}
+                    className={`rounded-full px-5 py-3 font-bold ${
+                      ages[age] ? "bg-[#6B8F71] text-white" : "bg-[#F7F3EA]"
+                    }`}
+                  >
+                    {age === "4-12"
+                      ? "👶 4–12 mois"
+                      : age === "12-18"
+                      ? "🧒 12–18 mois"
+                      : "👧 18 mois et +"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="mt-6 flex flex-wrap gap-3">
               {(["classique", "sansPorc", "vegetarien"] as Preference[]).map((pref) => (
                 <button
@@ -517,7 +802,11 @@ export default function GenerateurPage() {
                     preference === pref ? "bg-[#6B8F71] text-white" : "bg-[#F7F3EA]"
                   }`}
                 >
-                  {pref === "classique" ? "Classique" : pref === "sansPorc" ? "Sans porc" : "Végétarien"}
+                  {pref === "classique"
+                    ? "Classique"
+                    : pref === "sansPorc"
+                    ? "Sans porc"
+                    : "Végétarien"}
                 </button>
               ))}
             </div>
@@ -544,7 +833,7 @@ export default function GenerateurPage() {
             </div>
 
             <button
-              onClick={() => setMenus(genererMenu(mode, nombreJours, preference))}
+              onClick={() => setMenus(genererMenu(mode, nombreJours, preference, saison))}
               className="mt-8 rounded-full bg-[#6B8F71] px-8 py-4 text-lg font-bold text-white"
             >
               Générer mon menu ✨
@@ -571,34 +860,43 @@ export default function GenerateurPage() {
                       <p className="font-bold text-[#6B8F71]">Dîner commun</p>
                       <h3 className="mt-3 text-2xl font-bold">{menu.diner.plat}</h3>
 
-                      <div className="mt-4 grid gap-4 md:grid-cols-5">
-                        <div>💧 {menu.diner.boisson}</div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-6">
+                        <div>
+                          💧 {menu.diner.boisson}
+                        </div>
+
+                        <div>
+                          🍲 {menu.soupe || "Pas de soupe"}
+                          <button onClick={() => modifier(menu.index, "soupe")} className="block text-sm font-bold text-[#6B8F71] underline">
+                            Modifier soupe
+                          </button>
+                        </div>
 
                         <div>
                           🥔 {menu.diner.feculent}
                           <button onClick={() => modifier(menu.index, "feculent")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier
+                            Modifier féculent
                           </button>
                         </div>
 
                         <div>
                           🥦 {menu.diner.legumes}
                           <button onClick={() => modifier(menu.index, "legumes")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier
+                            Modifier légumes
                           </button>
                         </div>
 
                         <div>
                           🍗 {menu.diner.proteine}
                           <button onClick={() => modifier(menu.index, "proteine")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier
+                            Modifier VVP/O
                           </button>
                         </div>
 
                         <div>
                           🫒 {menu.diner.matiereGrasse}
                           <button onClick={() => modifier(menu.index, "matiereGrasse")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier
+                            Modifier MG
                           </button>
                         </div>
                       </div>
@@ -608,14 +906,53 @@ export default function GenerateurPage() {
                       </p>
                     </div>
 
-                    <div className="mt-6 rounded-2xl bg-[#F7F3EA] p-5">
-                      <p className="font-bold">Goûters</p>
-                      <p className="mt-2">👶 4–12 mois : {menu.gouter.bebe}</p>
-                      <p className="mt-2">🧒 12–18 mois : {menu.gouter.fruit} + {menu.gouter.pain1218}</p>
-                      <p className="mt-2">
-                        👧 18 mois + : {menu.gouter.fruit} + {menu.gouter.pain18}
-                        {menu.gouter.laitier18 !== "Non nécessaire" ? ` + ${menu.gouter.laitier18}` : ""}
-                      </p>
+                    <div className="mt-6 grid gap-4 md:grid-cols-3">
+                      {ages["4-12"] && (
+                        <div className="rounded-2xl bg-[#F7F3EA] p-5">
+                          <p className="font-bold">👶 4–12 mois</p>
+                          <p className="mt-2 text-sm text-gray-700">
+                            Pas de soupe. Repas vapeur/mixé simple : féculent + légumes + VVP/O selon l’avancée de la diversification.
+                          </p>
+                          <p className="mt-3">Goûter : {menu.gouter.bebe}</p>
+                          <button onClick={() => modifierGouter(menu.index, "bebe")} className="mt-2 text-sm font-bold text-[#6B8F71] underline">
+                            Modifier compote
+                          </button>
+                        </div>
+                      )}
+
+                      {ages["12-18"] && (
+                        <div className="rounded-2xl bg-[#F7F3EA] p-5">
+                          <p className="font-bold">🧒 12–18 mois</p>
+                          <p className="mt-2 text-sm text-gray-700">
+                            Soupe possible si texture adaptée. Morceaux fondants ou mouliné selon l’enfant.
+                          </p>
+                          <p className="mt-3">Goûter : {menu.gouter.fruit} + {menu.gouter.pain1218}</p>
+                          <button onClick={() => modifierGouter(menu.index, "fruit")} className="mt-2 text-sm font-bold text-[#6B8F71] underline">
+                            Modifier fruits
+                          </button>
+                        </div>
+                      )}
+
+                      {ages["18+"] && (
+                        <div className="rounded-2xl bg-[#F7F3EA] p-5">
+                          <p className="font-bold">👧 18 mois et +</p>
+                          <p className="mt-2 text-sm text-gray-700">
+                            Soupe possible. Repas présenté séparé si possible avec textures fondantes.
+                          </p>
+                          <p className="mt-3">
+                            Goûter : {menu.gouter.fruit} + {menu.gouter.pain18}
+                            {menu.gouter.laitier18 !== "Non nécessaire" ? ` + ${menu.gouter.laitier18}` : ""}
+                          </p>
+                          <div className="mt-2 flex gap-4">
+                            <button onClick={() => modifierGouter(menu.index, "fruit")} className="text-sm font-bold text-[#6B8F71] underline">
+                              Modifier fruits
+                            </button>
+                            <button onClick={() => modifierGouter(menu.index, "laitier")} className="text-sm font-bold text-[#6B8F71] underline">
+                              Modifier laitier
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -631,7 +968,8 @@ export default function GenerateurPage() {
                       <h3 className="text-2xl font-bold">Semaine {semaine}</h3>
 
                       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        <CoursesBloc titre="🥦 Légumes" liste={liste.legumes} />
+                        <CoursesBloc titre="🍲 Légumes pour soupe" liste={liste.soupes} />
+                        <CoursesBloc titre="🥦 Légumes repas" liste={liste.legumes} />
                         <CoursesBloc titre="🥔 Féculents" liste={liste.feculents} />
                         <CoursesBloc titre="🍗 VVP/O" liste={liste.proteines} />
                         <CoursesBloc titre="🍎 Fruits" liste={liste.fruits} />
@@ -652,6 +990,7 @@ export default function GenerateurPage() {
             <thead>
               <tr>
                 <th>Jour</th>
+                <th>Soupe</th>
                 <th>Féculent</th>
                 <th>Légumes</th>
                 <th>VVP/O</th>
@@ -664,6 +1003,7 @@ export default function GenerateurPage() {
               {menus.map((menu) => (
                 <tr key={menu.index}>
                   <td>{menu.jour}</td>
+                  <td>{menu.soupe || "-"}</td>
                   <td>{menu.diner.feculent}</td>
                   <td>{menu.diner.legumes}</td>
                   <td>{menu.diner.proteine}</td>
@@ -698,9 +1038,17 @@ export default function GenerateurPage() {
                 </thead>
 
                 <tbody>
+                  {Object.entries(liste.soupes).map(([nom, q]) => (
+                    <tr key={`s-${nom}`}>
+                      <td>Soupe</td>
+                      <td>{nom}</td>
+                      <td>{afficherQuantite(nom, q)}</td>
+                    </tr>
+                  ))}
+
                   {Object.entries(liste.legumes).map(([nom, q]) => (
                     <tr key={`l-${nom}`}>
-                      <td>Légumes</td>
+                      <td>Légumes repas</td>
                       <td>{nom}</td>
                       <td>{afficherQuantite(nom, q)}</td>
                     </tr>
