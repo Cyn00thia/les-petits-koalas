@@ -716,6 +716,22 @@ export default function GenerateurPage() {
             visibility: hidden;
           }
 
+          @page {
+            margin: 1.5cm;
+          }
+
+          .page-number::after {
+            content: counter(page);
+          }
+
+          .print-footer {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            font-size: 10px;
+            color: #666;
+          }
+
           .print-only,
           .print-only * {
             visibility: visible;
@@ -1158,6 +1174,9 @@ export default function GenerateurPage() {
               </table>
             </div>
           ))}
+        </div>
+        <div className="print-footer print-only">
+          Page <span className="page-number"></span>
         </div>
       </main>
     </>
