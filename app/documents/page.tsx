@@ -7,7 +7,7 @@ import { supabase } from "../supabase";
 type DocumentItem = {
   name: string;
   url: string;
-  created_at?: string;
+  created_at?: string | null;
 };
 
 export default function DocumentsPage() {
