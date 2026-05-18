@@ -56,7 +56,14 @@ const sections = [
     emoji: "📄",
     couleur: "bg-[#F7F1DD]",
   },
-
+{
+  title: "Enfants",
+  description:
+    "Gestion des enfants, présences, allergies et diversification alimentaire.",
+  lien: "/enfants",
+  emoji: "👶",
+  couleur: "bg-[#EEF4E8]",
+},
   {
     titre: "Espace parents",
     description:
