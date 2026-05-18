@@ -1238,6 +1238,8 @@ export default function GenerateurPage() {
                 <th>VVP/O</th>
                 <th>MG</th>
                 <th>Herbe</th>
+                <th>Goûter 4–12 mois</th>
+                <th>Goûter 12–18 mois</th>
                 <th>Goûter 18 mois +</th>
               </tr>
             </thead>
@@ -1252,6 +1254,12 @@ export default function GenerateurPage() {
                   <td>{menu.diner.proteine}</td>
                   <td>{menu.diner.matiereGrasse}</td>
                   <td>{menu.diner.herbe}</td>
+                  <td>{menu.gouter.bebe}</td>
+                  <td>
+                    {menu.gouter.fruit}
+                    <br />
+                    {menu.gouter.pain1218}
+                  </td>
                   <td>
                     {menu.gouter.fruit}
                     <br />
