@@ -862,42 +862,31 @@ export default function GenerateurPage() {
         }
 
         @media print {
-          body * {
-            visibility: hidden;
-          }
-
           @page {
-            margin: 1.5cm;
+            size: A4 landscape;
+            margin: 1.2cm;
           }
 
-          .page-number::after {
-            content: counter(page);
+          body {
+            background: white !important;
           }
 
-          .print-footer {
-            position: fixed;
-            bottom: 0;
-            right: 0;
-            font-size: 10px;
-            color: #666;
-          }
-
-          .print-only,
-          .print-only * {
-            visibility: visible;
-          }
-
-          .print-only {
-            display: block;
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            background: white;
-            padding: 16px;
+          main {
+            background: white !important;
+            padding: 0 !important;
           }
 
           .screen-only {
+            display: none !important;
+          }
+
+          .print-only {
+            display: block !important;
+            background: white !important;
+            color: black !important;
+          }
+
+          .print-footer {
             display: none !important;
           }
 
@@ -905,25 +894,35 @@ export default function GenerateurPage() {
             width: 100%;
             border-collapse: collapse;
             font-size: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
+            page-break-inside: auto;
           }
 
           .print-only th,
           .print-only td {
-            border: 1px solid #999;
+            border: 1px solid #777;
             padding: 5px;
             text-align: left;
             vertical-align: top;
           }
 
+          .print-only th {
+            background: #f1f1f1 !important;
+            font-weight: bold;
+          }
+
           .print-only h1 {
             font-size: 22px;
-            margin-bottom: 12px;
+            margin: 0 0 12px;
           }
 
           .print-only h2 {
             font-size: 16px;
             margin: 18px 0 8px;
+          }
+
+          .print-page-break {
+            page-break-before: always;
           }
         }
       `}</style>
@@ -1225,6 +1224,9 @@ export default function GenerateurPage() {
 
         <div className="print-only">
           <h1>Menus générés</h1>
+          <p style={{ fontSize: "10px", marginBottom: "10px" }}>
+            Astuce impression : activez “En-têtes et pieds de page” dans la fenêtre d’impression du navigateur pour afficher la numérotation automatique des pages.
+          </p>
 
           <table>
             <thead>
@@ -1267,7 +1269,7 @@ export default function GenerateurPage() {
           </table>
 
           {Object.entries(listesCourses).map(([semaine, liste]) => (
-            <div key={semaine}>
+            <div key={semaine} className="print-page-break">
               <h2>Liste de courses — Semaine {semaine}</h2>
 
               <table>
@@ -1331,10 +1333,6 @@ export default function GenerateurPage() {
               </table>
             </div>
           ))}
-        </div>
-
-        <div className="print-footer print-only">
-          Page <span className="page-number"></span>
         </div>
       </main>
     </>
