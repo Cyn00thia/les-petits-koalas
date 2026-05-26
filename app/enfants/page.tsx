@@ -7,6 +7,7 @@ import { supabase } from "../supabase";
 
 type Enfant = {
   id: string;
+  userId: string;
   nom: string;
   dateNaissance: string;
   joursPresence: string[];
@@ -22,6 +23,7 @@ type Enfant = {
 
 type EnfantSupabase = {
   id: string;
+  user_id: string;
   nom: string;
   date_naissance: string;
   jours_presence: string[] | null;
@@ -80,6 +82,7 @@ const listeHerbes = [
 function depuisSupabase(row: EnfantSupabase): Enfant {
   return {
     id: row.id,
+    userId: row.user_id,
     nom: row.nom,
     dateNaissance: row.date_naissance,
     joursPresence: row.jours_presence ?? [],
@@ -96,6 +99,7 @@ function depuisSupabase(row: EnfantSupabase): Enfant {
 
 function versSupabase(enfant: Partial<Enfant>) {
   return {
+    user_id: enfant.userId,
     nom: enfant.nom,
     date_naissance: enfant.dateNaissance,
     jours_presence: enfant.joursPresence ?? [],
@@ -227,6 +231,7 @@ export default function EnfantsPage() {
   const [fenetreDiversification, setFenetreDiversification] = useState<string | null>(null);
   const [autreAliment, setAutreAliment] = useState("");
   const [chargement, setChargement] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [enfants, setEnfants] = useState<Enfant[]>([]);
 
   useEffect(() => {
@@ -243,15 +248,17 @@ export default function EnfantsPage() {
       return;
     }
 
-    chargerEnfants();
+    setUserId(session.user.id);
+    chargerEnfants(session.user.id);
   }
 
-  async function chargerEnfants() {
+  async function chargerEnfants(compteId: string) {
     setChargement(true);
 
     const { data, error } = await supabase
       .from("children")
       .select("*")
+      .eq("user_id", compteId)
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -272,6 +279,12 @@ export default function EnfantsPage() {
   }
 
   async function ajouterEnfant() {
+    if (!userId) {
+      alert("Tu dois être connectée pour ajouter un enfant.");
+      router.push("/login");
+      return;
+    }
+
     if (!nom.trim()) {
       alert("Indique au minimum une initiale ou un prénom.");
       return;
@@ -283,6 +296,7 @@ export default function EnfantsPage() {
     }
 
     const nouvelEnfant: Partial<Enfant> = {
+      userId,
       nom: nom.trim(),
       dateNaissance,
       joursPresence,
