@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../supabase";
+import { supabase } from "../../supabase";
 
 type Enfant = {
   id: string;
@@ -10,39 +10,64 @@ type Enfant = {
   jours_presence: string[];
 };
 
+type Transmission = {
+  repas: string;
+  gouter: string;
+  sieste: string;
+  selles: string;
+  humeur: string;
+  remarques: string;
+  date: string;
+};
+
 export default function ParentsPage() {
-  const [code, setCode] = useState("");
+  const [codeParent, setCodeParent] = useState("");
   const [enfant, setEnfant] = useState<Enfant | null>(null);
-  const [erreur, setErreur] = useState("");
+  const [transmission, setTransmission] = useState<Transmission | null>(null);
 
-  async function verifierCode() {
-    setErreur("");
-    setEnfant(null);
-
-    const { data, error } = await supabase
+  async function accederEspaceParent() {
+    const { data: enfantData, error } = await supabase
       .from("children")
       .select("*")
-      .eq("code_parent", code.trim())
+      .eq("code_parent", codeParent)
       .single();
 
-    if (error || !data) {
-      setErreur("Code invalide.");
+    if (error || !enfantData) {
+      alert("Code parent invalide.");
       return;
     }
 
-    setEnfant(data);
+    setEnfant(enfantData);
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data: transmissionData } = await supabase
+      .from("daily_reports")
+      .select("*")
+      .eq("child_id", enfantData.id)
+      .eq("date", today)
+      .single();
+
+    if (transmissionData) {
+      setTransmission(transmissionData);
+    } else {
+      setTransmission(null);
+    }
   }
 
-  function calculAge(dateNaissance: string) {
+  function calculerAge(dateNaissance: string) {
     const naissance = new Date(dateNaissance);
     const aujourdHui = new Date();
 
     let age = aujourdHui.getFullYear() - naissance.getFullYear();
-    const mois = aujourdHui.getMonth() - naissance.getMonth();
+
+    const mois =
+      aujourdHui.getMonth() - naissance.getMonth();
 
     if (
       mois < 0 ||
-      (mois === 0 && aujourdHui.getDate() < naissance.getDate())
+      (mois === 0 &&
+        aujourdHui.getDate() < naissance.getDate())
     ) {
       age--;
     }
@@ -51,59 +76,54 @@ export default function ParentsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F8F6F2] px-6 py-10">
-      <section className="mx-auto max-w-2xl rounded-[2rem] bg-white p-8 shadow-sm">
-        <h1 className="text-4xl font-black text-[#1D2B1F]">
+    <main className="min-h-screen bg-[#F6F4EE] p-6 flex justify-center">
+      <div className="w-full max-w-2xl bg-white rounded-[32px] shadow-sm p-8">
+        <h1 className="text-5xl font-black text-[#1D2B1F] mb-6">
           Espace parents
         </h1>
 
-        <p className="mt-4 text-lg text-gray-600">
-          Entrez votre code parent pour accéder aux informations de votre enfant.
+        <p className="text-2xl text-gray-700 mb-8">
+          Entrez votre code parent pour accéder aux
+          informations de votre enfant.
         </p>
 
-        <div className="mt-8 flex flex-col gap-4">
-          <input
-            type="text"
-            placeholder="Code parent"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="rounded-2xl border border-[#E7E1D7] px-5 py-4 text-lg outline-none"
-          />
+        <input
+          type="text"
+          placeholder="Code parent"
+          value={codeParent}
+          onChange={(e) =>
+            setCodeParent(e.target.value.toUpperCase())
+          }
+          className="w-full border rounded-2xl px-5 py-5 text-2xl mb-5"
+        />
 
-          <button
-            onClick={verifierCode}
-            className="rounded-2xl bg-[#6D8B74] px-6 py-4 text-lg font-bold text-white transition hover:opacity-90"
-          >
-            Accéder
-          </button>
-        </div>
-
-        {erreur && (
-          <div className="mt-6 rounded-2xl bg-red-100 p-4 text-red-600">
-            {erreur}
-          </div>
-        )}
+        <button
+          onClick={accederEspaceParent}
+          className="w-full bg-[#7C9678] hover:bg-[#6E876A] text-white text-3xl font-bold rounded-2xl py-5 mb-10"
+        >
+          Accéder
+        </button>
 
         {enfant && (
-          <div className="mt-8 rounded-[2rem] bg-[#F4F8F3] p-6">
-            <h2 className="text-3xl font-black text-[#1D2B1F]">
+          <div className="bg-[#EEF2EC] rounded-[32px] p-8">
+            <h2 className="text-4xl font-black text-[#1D2B1F] mb-4">
               {enfant.nom}
             </h2>
 
-            <p className="mt-2 text-lg text-gray-700">
-              Âge : {calculAge(enfant.date_naissance)} an(s)
+            <p className="text-2xl mb-6">
+              Âge : {calculerAge(enfant.date_naissance)} an(s)
             </p>
 
-            <div className="mt-6">
-              <p className="font-bold text-[#1D2B1F]">
+            <div className="mb-8">
+              <p className="font-bold text-2xl mb-3">
                 Jours de présence :
               </p>
 
-              <div className="mt-3 flex flex-wrap gap-3">
+              <div className="flex gap-3 flex-wrap">
                 {enfant.jours_presence?.map((jour) => (
                   <span
                     key={jour}
-                    className="rounded-full bg-white px-4 py-2 text-sm font-bold text-[#1D2B1F]"
+                    className="bg-white px-4 py-2 rounded-full text-xl font-semibold"
                   >
                     {jour}
                   </span>
@@ -111,18 +131,53 @@ export default function ParentsPage() {
               </div>
             </div>
 
-            <div className="mt-8 rounded-3xl bg-white p-5">
-              <p className="text-xl font-bold text-[#1D2B1F]">
+            <div className="bg-white rounded-[24px] p-6">
+              <h3 className="text-3xl font-black mb-5">
                 Transmission du jour
-              </p>
+              </h3>
 
-              <p className="mt-3 text-gray-600">
-                Aucun rapport disponible pour aujourd’hui.
-              </p>
+              {transmission ? (
+                <div className="space-y-6 text-xl">
+                  <div>
+                    <p className="font-bold">Repas</p>
+                    <p>{transmission.repas}</p>
+                  </div>
+
+                  <div>
+                    <p className="font-bold">Goûter</p>
+                    <p>{transmission.gouter}</p>
+                  </div>
+
+                  <div>
+                    <p className="font-bold">Sieste</p>
+                    <p>{transmission.sieste}</p>
+                  </div>
+
+                  <div>
+                    <p className="font-bold">Selles</p>
+                    <p>{transmission.selles}</p>
+                  </div>
+
+                  <div>
+                    <p className="font-bold">Humeur</p>
+                    <p>{transmission.humeur}</p>
+                  </div>
+
+                  <div>
+                    <p className="font-bold">Remarques</p>
+                    <p>{transmission.remarques}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xl text-gray-600">
+                  Aucun rapport disponible pour
+                  aujourd’hui.
+                </p>
+              )}
             </div>
           </div>
         )}
-      </section>
+      </div>
     </main>
   );
 }
