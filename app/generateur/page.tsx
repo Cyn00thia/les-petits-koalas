@@ -599,15 +599,114 @@ function choisirProteine(index: number, preference: Preference) {
   return [poissonMaigre, volaille, "Œuf", poissonGras, semaine % 2 === 0 ? "Bœuf" : "Porc"][jour];
 }
 
+function choisirElementAvecMemoire(
+  liste: string[],
+  utilisesSemaine: Set<string>,
+  utilisesRecents: string[],
+  interdits: Set<string>
+) {
+  let possibles = liste.filter((item) => {
+    const elements = elementsDepuisTexte(item);
+    return (
+      !utilisesSemaine.has(item) &&
+      !utilisesRecents.includes(item) &&
+      elements.every((element) => !interdits.has(element))
+    );
+  });
+
+  if (possibles.length === 0) {
+    possibles = liste.filter((item) => {
+      const elements = elementsDepuisTexte(item);
+      return !utilisesRecents.includes(item) && elements.every((element) => !interdits.has(element));
+    });
+  }
+
+  if (possibles.length === 0) {
+    possibles = liste.filter((item) => {
+      const elements = elementsDepuisTexte(item);
+      return elements.every((element) => !interdits.has(element));
+    });
+  }
+
+  if (possibles.length === 0) {
+    possibles = liste;
+  }
+
+  const choix = possibles[Math.floor(Math.random() * possibles.length)];
+  utilisesSemaine.add(choix);
+
+  return choix;
+}
+
+function choisirFruitVarie(fruits: string[], fruitsRecents: string[]) {
+  let possibles = fruits.filter((fruit) => !fruitsRecents.includes(fruit));
+
+  if (possibles.length === 0) {
+    possibles = fruits;
+  }
+
+  return possibles[Math.floor(Math.random() * possibles.length)];
+}
+
+function choisirMatiereGrasseVariee(index: number) {
+  return index % 2 === 0 ? "Huile de colza" : index % 3 === 0 ? "Beurre" : "Huile d’olive";
+}
+
+function planningProteinesSemaine(semaineIndex: number, preference: Preference) {
+  if (preference === "vegetarien") {
+    return [
+      "Repas végétarien",
+      "Œuf",
+      "Galette de légumes adaptée",
+      "Repas végétarien",
+      "Œuf",
+    ];
+  }
+
+  const poissonMaigre = poissonsMaigres[semaineIndex % poissonsMaigres.length];
+  const poissonGras = poissonsGras[semaineIndex % poissonsGras.length];
+  const poissonBlanc = poissonsBlancs[semaineIndex % poissonsBlancs.length];
+  const volaille1 = semaineIndex % 2 === 0 ? "Poulet" : "Dinde";
+  const volaille2 = semaineIndex % 2 === 0 ? "Dinde" : "Poulet";
+
+  if (preference === "sansPorc") {
+    return [
+      poissonMaigre,
+      volaille1,
+      "Œuf",
+      poissonGras,
+      semaineIndex % 2 === 0 ? "Bœuf" : poissonBlanc,
+    ];
+  }
+
+  return [
+    poissonMaigre,
+    volaille1,
+    "Œuf",
+    poissonGras,
+    semaineIndex % 2 === 0 ? "Bœuf" : "Porc",
+  ];
+}
+
 function genererMenu(mode: ModePeriode, nombreJours: number, preference: Preference, saison: Saison): MenuJour[] {
   const total = mode === "mois" ? 20 : nombreJours;
   const dataSaison = saisons[saison];
   const menus: MenuJour[] = [];
 
+  const legumesRecentsGlobaux: string[] = [];
+  const soupesRecentesGlobales: string[] = [];
+  const fruitsRecentsGlobaux: string[] = [];
+  const feculentsRecentsGlobaux: string[] = [];
+  const proteinesRecentesGlobales: string[] = [];
+
   for (let semaineIndex = 0; semaineIndex < Math.ceil(total / 5); semaineIndex++) {
-    const utilisesLegumes = new Set<string>();
-    const utilisesSoupes = new Set<string>();
-    const legumesDerniersJours = new Set<string>();
+    const utilisesLegumesSemaine = new Set<string>();
+    const utilisesSoupesSemaine = new Set<string>();
+    const utilisesFruitsSemaine = new Set<string>();
+    const utilisesFeculentsSemaine = new Set<string>();
+    const utilisesProteinesSemaine = new Set<string>();
+
+    const proteinesSemaine = planningProteinesSemaine(semaineIndex, preference);
 
     for (let jourIndex = 0; jourIndex < 5; jourIndex++) {
       const index = semaineIndex * 5 + jourIndex;
@@ -617,33 +716,80 @@ function genererMenu(mode: ModePeriode, nombreJours: number, preference: Prefere
       const jourCourt = joursSemaine[jourIndex];
       const jour = mode === "mois" ? `Semaine ${semaine} - ${jourCourt}` : jourCourt;
 
-      const soupe = choisirSoupeSansRepeter(dataSaison.soupes, utilisesSoupes, legumesDerniersJours);
+      const soupe = choisirElementAvecMemoire(
+        dataSaison.soupes,
+        utilisesSoupesSemaine,
+        soupesRecentesGlobales,
+        new Set()
+      );
+
       const legumesSoupe = new Set(elementsDepuisTexte(soupe));
+      const legumesInterdits = new Set([...legumesSoupe, ...legumesRecentsGlobaux]);
 
-      const legumesInterdits = new Set([...legumesDerniersJours, ...legumesSoupe]);
-
-      const legume1 = choisirSansRepetition(dataSaison.legumes, utilisesLegumes, legumesInterdits);
+      const legume1 = choisirElementAvecMemoire(
+        dataSaison.legumes,
+        utilisesLegumesSemaine,
+        legumesRecentsGlobaux,
+        legumesInterdits
+      );
 
       let legumesRepas = legume1;
 
-      if (index % 3 === 0) {
-        const legume2 = choisirSansRepetition(
+      if (index % 2 === 0) {
+        const legume2 = choisirElementAvecMemoire(
           dataSaison.legumes,
-          utilisesLegumes,
+          utilisesLegumesSemaine,
+          legumesRecentsGlobaux,
           new Set([...legumesInterdits, ...elementsDepuisTexte(legume1)])
         );
 
-        if (legume2 !== legume1) {
+        if (legume2 !== legume1 && !elementsDepuisTexte(legume1).some((l) => elementsDepuisTexte(legume2).includes(l))) {
           legumesRepas = `${legume1} + ${legume2}`;
         }
       }
 
-      legumesDerniersJours.clear();
-      elementsDepuisTexte(legumesRepas).forEach((l) => legumesDerniersJours.add(l));
-      elementsDepuisTexte(soupe).forEach((l) => legumesDerniersJours.add(l));
+      const feculentBase = choisirFeculent(index);
+      let feculent = feculentBase;
 
-      const laitier18 = laitages18[index % laitages18.length];
-      const fruit = dataSaison.fruits[index % dataSaison.fruits.length];
+      if (feculentsRecentsGlobaux.includes(feculentBase)) {
+        feculent = choisirElementAvecMemoire(
+          feculentsTous,
+          utilisesFeculentsSemaine,
+          feculentsRecentsGlobaux,
+          new Set()
+        );
+      } else {
+        utilisesFeculentsSemaine.add(feculentBase);
+      }
+
+      let proteine = proteinesSemaine[jourIndex];
+
+      if (proteinesRecentesGlobales.includes(proteine)) {
+        const liste =
+          preference === "vegetarien"
+            ? proteinesVegetariennes
+            : preference === "sansPorc"
+            ? proteinesSansPorc
+            : proteinesClassiques;
+
+        proteine = choisirElementAvecMemoire(
+          liste,
+          utilisesProteinesSemaine,
+          proteinesRecentesGlobales,
+          new Set()
+        );
+      } else {
+        utilisesProteinesSemaine.add(proteine);
+      }
+
+      const fruit = choisirFruitVarie(
+        dataSaison.fruits.filter((fruit) => !utilisesFruitsSemaine.has(fruit)),
+        fruitsRecentsGlobaux
+      );
+
+      utilisesFruitsSemaine.add(fruit);
+
+      const laitier18 = laitages18[(index + semaineIndex) % laitages18.length];
 
       menus.push({
         index,
@@ -654,21 +800,38 @@ function genererMenu(mode: ModePeriode, nombreJours: number, preference: Prefere
         diner: {
           boisson: "Eau",
           plat: "Repas avec soupe séparée",
-          feculent: choisirFeculent(index),
+          feculent,
           legumes: legumesRepas,
-          proteine: choisirProteine(index, preference),
-          matiereGrasse: matieresGrasses[index % matieresGrasses.length],
-          herbe: herbesAromatiques[index % herbesAromatiques.length],
+          proteine,
+          matiereGrasse: choisirMatiereGrasseVariee(index),
+          herbe: herbesAromatiques[(index * 2 + semaineIndex) % herbesAromatiques.length],
           remarque: "Soupe proposée uniquement aux enfants de 12 mois et +. Pour les moins de 12 mois : repas vapeur/mixé simple, sans soupe.",
         },
         gouter: {
-          bebe: compotesBebe[index % compotesBebe.length],
+          bebe: compotesBebe[(index + semaineIndex) % compotesBebe.length],
           fruit,
-          pain1218: "Pain beurré",
-          pain18: laitier18 === "Fromage" ? "Pain" : "Pain beurré",
+          pain1218: index % 2 === 0 ? "Pain beurré" : "Pain nature",
+          pain18: laitier18 === "Fromage" ? "Pain" : index % 2 === 0 ? "Pain beurré" : "Pain nature",
           laitier18,
         },
       });
+
+      soupesRecentesGlobales.push(soupe);
+      if (soupesRecentesGlobales.length > 4) soupesRecentesGlobales.shift();
+
+      elementsDepuisTexte(legumesRepas).forEach((legume) => {
+        legumesRecentsGlobaux.push(legume);
+      });
+      while (legumesRecentsGlobaux.length > 8) legumesRecentsGlobaux.shift();
+
+      fruitsRecentsGlobaux.push(fruit);
+      if (fruitsRecentsGlobaux.length > 4) fruitsRecentsGlobaux.shift();
+
+      feculentsRecentsGlobaux.push(feculent);
+      if (feculentsRecentsGlobaux.length > 4) feculentsRecentsGlobaux.shift();
+
+      proteinesRecentesGlobales.push(proteine);
+      if (proteinesRecentesGlobales.length > 3) proteinesRecentesGlobales.shift();
     }
   }
 
@@ -1069,8 +1232,8 @@ export default function GenerateurPage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-relaxed text-gray-600">
-              Génère des menus variés avec soupe séparée tous les jours, légumes de saison,
-              herbes aromatiques et liste de courses en poids cru.
+              Génère des menus plus variés, avec alternance des protéines, légumes de saison,
+              soupe séparée, goûters adaptés et liste de courses en poids cru.
             </p>
           </div>
 
