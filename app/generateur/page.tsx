@@ -1,12 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "../supabase";
 
 type Age = "4-12" | "12-18" | "18+";
 type Preference = "classique" | "sansPorc" | "vegetarien";
 type ModePeriode = "semaine" | "mois";
 type Saison = "printemps" | "ete" | "automne" | "hiver";
+
+type Enfant = {
+  id: string;
+  nom: string;
+  date_naissance: string;
+  jours_presence: string[];
+  user_id?: string;
+};
 
 type MenuJour = {
   index: number;
@@ -748,6 +757,44 @@ function CoursesBloc({ titre, liste }: { titre: string; liste: Record<string, nu
   );
 }
 
+function calculerAgeEnMois(dateNaissance: string) {
+  const naissance = new Date(dateNaissance);
+  const aujourdhui = new Date();
+
+  let mois =
+    (aujourdhui.getFullYear() - naissance.getFullYear()) * 12 +
+    (aujourdhui.getMonth() - naissance.getMonth());
+
+  if (aujourdhui.getDate() < naissance.getDate()) {
+    mois--;
+  }
+
+  return Math.max(0, mois);
+}
+
+function afficherAgeDepuisMois(mois: number) {
+  if (mois < 12) return `${mois} mois`;
+
+  const annees = Math.floor(mois / 12);
+  const reste = mois % 12;
+
+  if (reste === 0) return `${annees} an${annees > 1 ? "s" : ""}`;
+
+  return `${annees} an${annees > 1 ? "s" : ""} et ${reste} mois`;
+}
+
+function trancheAgeDepuisMois(mois: number): Age {
+  if (mois < 12) return "4-12";
+  if (mois < 18) return "12-18";
+  return "18+";
+}
+
+function libelleTrancheAge(age: Age) {
+  if (age === "4-12") return "4–12 mois";
+  if (age === "12-18") return "12–18 mois";
+  return "18 mois et +";
+}
+
 export default function GenerateurPage() {
   const [mode, setMode] = useState<ModePeriode>("semaine");
   const [nombreJours, setNombreJours] = useState(5);
@@ -760,6 +807,10 @@ export default function GenerateurPage() {
     "18+": true,
   });
 
+  const [enfantsConnectes, setEnfantsConnectes] = useState<Enfant[]>([]);
+  const [modeProActif, setModeProActif] = useState(false);
+  const [chargementEnfants, setChargementEnfants] = useState(true);
+
   const [enfantsParJour, setEnfantsParJour] = useState<Record<string, number>>({
     Lundi: 0,
     Mardi: 0,
@@ -767,6 +818,81 @@ export default function GenerateurPage() {
     Jeudi: 0,
     Vendredi: 0,
   });
+
+  useEffect(() => {
+    chargerEnfantsConnectes();
+  }, []);
+
+  async function chargerEnfantsConnectes() {
+    setChargementEnfants(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setChargementEnfants(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("children")
+      .select("id, nom, date_naissance, jours_presence, user_id")
+      .eq("user_id", user.id)
+      .order("nom");
+
+    if (error) {
+      console.log(error);
+      setChargementEnfants(false);
+      return;
+    }
+
+    setEnfantsConnectes(data || []);
+    setChargementEnfants(false);
+  }
+
+  function appliquerEnfantsDuCompte() {
+    const presences: Record<string, number> = {
+      Lundi: 0,
+      Mardi: 0,
+      Mercredi: 0,
+      Jeudi: 0,
+      Vendredi: 0,
+    };
+
+    const tranches: Record<Age, boolean> = {
+      "4-12": false,
+      "12-18": false,
+      "18+": false,
+    };
+
+    enfantsConnectes.forEach((enfant) => {
+      const mois = calculerAgeEnMois(enfant.date_naissance);
+      const tranche = trancheAgeDepuisMois(mois);
+
+      tranches[tranche] = true;
+
+      enfant.jours_presence?.forEach((jour) => {
+        if (jour in presences) {
+          presences[jour] += 1;
+        }
+      });
+    });
+
+    setEnfantsParJour(presences);
+    setAges({
+      "4-12": tranches["4-12"],
+      "12-18": tranches["12-18"],
+      "18+": tranches["18+"],
+    });
+    setModeProActif(true);
+  }
+
+  function enfantsPresentsLeJour(jour: string) {
+    return enfantsConnectes.filter((enfant) =>
+      enfant.jours_presence?.includes(jour)
+    );
+  }
 
   const listesCourses = useMemo(
     () => calculerCourses(menus, enfantsParJour),
@@ -950,6 +1076,102 @@ export default function GenerateurPage() {
 
           <section className="mt-8 rounded-[2rem] bg-white p-8 shadow-sm">
             <h2 className="text-3xl font-bold">Paramètres</h2>
+
+            <div className="mt-6 rounded-[2rem] border border-[#E7E2D8] bg-[#F8F6F2] p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#6B8F71]">
+                    Mode professionnel
+                  </p>
+
+                  <h3 className="mt-2 text-2xl font-bold">
+                    Enfants enregistrés dans ton espace pro
+                  </h3>
+
+                  <p className="mt-2 text-gray-600">
+                    Utilise les enfants encodés dans l’espace pro pour calculer automatiquement
+                    les présences par jour et les tranches d’âge.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={appliquerEnfantsDuCompte}
+                  disabled={chargementEnfants || enfantsConnectes.length === 0}
+                  className="rounded-full bg-[#6B8F71] px-6 py-3 font-bold text-white disabled:opacity-50"
+                >
+                  Utiliser mes enfants enregistrés
+                </button>
+              </div>
+
+              {chargementEnfants ? (
+                <p className="mt-5 text-gray-600">Chargement des enfants...</p>
+              ) : enfantsConnectes.length === 0 ? (
+                <p className="mt-5 text-gray-600">
+                  Aucun enfant enregistré ou aucun compte pro connecté.
+                </p>
+              ) : (
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {enfantsConnectes.map((enfant) => {
+                    const ageMois = calculerAgeEnMois(enfant.date_naissance);
+                    const tranche = trancheAgeDepuisMois(ageMois);
+
+                    return (
+                      <div
+                        key={enfant.id}
+                        className="rounded-2xl bg-white p-4 shadow-sm"
+                      >
+                        <p className="text-lg font-bold">{enfant.nom}</p>
+
+                        <p className="mt-1 text-sm text-gray-600">
+                          Âge : {afficherAgeDepuisMois(ageMois)} — {libelleTrancheAge(tranche)}
+                        </p>
+
+                        <p className="mt-2 text-sm text-gray-700">
+                          Présence :{" "}
+                          {enfant.jours_presence?.length
+                            ? enfant.jours_presence.join(" • ")
+                            : "Aucun jour défini"}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {modeProActif && (
+                <div className="mt-6 rounded-2xl bg-white p-5">
+                  <p className="font-bold text-[#6B8F71]">
+                    Mode pro activé ✅
+                  </p>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-5">
+                    {joursSemaine.map((jour) => {
+                      const presents = enfantsPresentsLeJour(jour);
+
+                      return (
+                        <div
+                          key={jour}
+                          className="rounded-2xl bg-[#F7F3EA] p-4"
+                        >
+                          <p className="font-bold">{jour}</p>
+
+                          <p className="mt-1 text-sm">
+                            {presents.length} enfant(s)
+                          </p>
+
+                          <p className="mt-2 text-xs text-gray-600">
+                            {presents.length
+                              ? presents.map((enfant) => enfant.nom).join(", ")
+                              : "Aucun"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
               <button
