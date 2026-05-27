@@ -142,6 +142,22 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-[#F7F4EE] px-6 py-10 text-[#1E2A1F]">
+      <div className="mx-auto mb-6 flex max-w-5xl gap-3">
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="rounded-full bg-white px-5 py-3 font-bold text-[#6E9271] shadow-sm"
+        >
+          ← Retour
+        </button>
+
+        <a
+          href="/"
+          className="rounded-full bg-white px-5 py-3 font-bold text-[#6E9271] shadow-sm"
+        >
+          🏠 Accueil
+        </a>
+      </div>
       <section className="mx-auto max-w-5xl">
         <Link href="/" className="font-bold text-[#6E9271]">
           ← Retour à l’accueil

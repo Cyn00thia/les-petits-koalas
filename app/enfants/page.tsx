@@ -192,6 +192,22 @@ export default function EnfantsPage() {
 
   return (
     <main className="min-h-screen bg-[#F7F4EE] px-6 py-10">
+      <div className="mx-auto mb-6 flex max-w-6xl gap-3">
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="rounded-full bg-white px-5 py-3 font-bold text-[#6E9271] shadow-sm"
+        >
+          ← Retour
+        </button>
+
+        <a
+          href="/"
+          className="rounded-full bg-white px-5 py-3 font-bold text-[#6E9271] shadow-sm"
+        >
+          🏠 Accueil
+        </a>
+      </div>
       <section className="mx-auto max-w-6xl">
         <div className="rounded-[2rem] bg-white p-8 shadow-sm">
           <h1 className="text-5xl font-black text-[#1E2A1F]">

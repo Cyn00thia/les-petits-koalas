@@ -33,7 +33,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/enfants");
+    router.push("/");
   }
 
   async function inscription() {
@@ -89,18 +89,6 @@ export default function LoginPage() {
               Connecte-toi pour gérer les enfants accueillis, les présences,
               les allergies et la diversification alimentaire.
             </p>
-
-            <div className="mt-8 rounded-[2rem] bg-[#E8F2EA] p-6">
-              <p className="font-bold text-[#6B8F71]">
-                Sécurité en préparation
-              </p>
-
-              <p className="mt-2 text-sm leading-relaxed text-gray-700">
-                Cette page prépare l’espace privé professionnel. L’étape suivante
-                sera de protéger les pages sensibles pour que seules les personnes
-                connectées puissent y accéder.
-              </p>
-            </div>
           </div>
 
           <div className="rounded-[2.5rem] bg-white p-8 shadow-sm">
@@ -162,12 +150,6 @@ export default function LoginPage() {
                   ? "Se connecter"
                   : "Créer mon compte"}
               </button>
-
-              <p className="text-center text-sm text-gray-500">
-                {mode === "connexion"
-                  ? "Pas encore de compte ? Clique sur Inscription."
-                  : "Après inscription, un email de confirmation peut être envoyé."}
-              </p>
             </div>
           </div>
         </div>
