@@ -1143,6 +1143,47 @@ export default function GenerateurPage() {
     window.print();
   }
 
+  async function enregistrerMenu() {
+    if (menus.length === 0) {
+      alert("Génère d’abord un menu avant de l’enregistrer.");
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Tu dois être connectée pour enregistrer un menu.");
+      return;
+    }
+
+    const titre = prompt(
+      "Nom du menu à enregistrer",
+      mode === "mois" ? "Menu mensuel" : "Menu semaine"
+    );
+
+    if (!titre) return;
+
+    const { error } = await supabase.from("saved_menus").insert([
+      {
+        user_id: user.id,
+        titre,
+        periode: mode,
+        menus,
+        courses: listesCourses,
+      },
+    ]);
+
+    if (error) {
+      console.log(error);
+      alert("Erreur lors de l’enregistrement du menu.");
+      return;
+    }
+
+    alert("Menu enregistré ✅");
+  }
+
   return (
     <>
       <style jsx global>{`
@@ -1467,6 +1508,13 @@ export default function GenerateurPage() {
                   className="rounded-full bg-white px-6 py-3 font-bold text-[#6B8F71]"
                 >
                   Imprimer menu + liste de courses
+                </button>
+
+                <button
+                  onClick={enregistrerMenu}
+                  className="rounded-full bg-[#6B8F71] px-6 py-3 font-bold text-white"
+                >
+                  Enregistrer ce menu
                 </button>
               </div>
 
