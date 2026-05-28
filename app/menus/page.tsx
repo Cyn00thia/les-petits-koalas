@@ -13,6 +13,7 @@ type SavedMenu = {
   menus: any[];
   courses: any;
   visible_parents: boolean;
+  menu_actif: boolean;
 };
 
 export default function MenusPage() {
@@ -54,27 +55,34 @@ export default function MenusPage() {
   }
 
   async function togglePartage(menu: SavedMenu) {
-    const nouvelleValeur = !menu.visible_parents;
+    const rendreActif = !menu.menu_actif;
 
-    const { error } = await supabase
+    const { error: erreurReset } = await supabase
       .from("saved_menus")
-      .update({ visible_parents: nouvelleValeur })
-      .eq("id", menu.id)
+      .update({ visible_parents: false, menu_actif: false })
       .eq("user_id", menu.user_id);
 
-    if (error) {
-      console.log(error);
-      alert("Erreur lors de la modification du partage.");
+    if (erreurReset) {
+      console.log(erreurReset);
+      alert("Erreur lors de la mise à jour des menus.");
       return;
     }
 
-    setMenusSauvegardes((prev) =>
-      prev.map((item) =>
-        item.id === menu.id
-          ? { ...item, visible_parents: nouvelleValeur }
-          : item
-      )
-    );
+    if (rendreActif) {
+      const { error } = await supabase
+        .from("saved_menus")
+        .update({ visible_parents: true, menu_actif: true })
+        .eq("id", menu.id)
+        .eq("user_id", menu.user_id);
+
+      if (error) {
+        console.log(error);
+        alert("Erreur lors de la modification du partage.");
+        return;
+      }
+    }
+
+    await chargerMenus();
   }
 
   async function supprimerMenu(menu: SavedMenu) {
@@ -171,9 +179,9 @@ export default function MenusPage() {
                         {menu.titre}
                       </h2>
 
-                      {menu.visible_parents && (
+                      {menu.menu_actif && (
                         <span className="rounded-full bg-[#E8F2EA] px-4 py-2 text-sm font-bold text-[#56735B]">
-                          Visible parents
+                          Menu actif parents
                         </span>
                       )}
                     </div>
@@ -189,14 +197,14 @@ export default function MenusPage() {
                       type="button"
                       onClick={() => togglePartage(menu)}
                       className={`rounded-full px-5 py-3 font-bold ${
-                        menu.visible_parents
+                        menu.menu_actif
                           ? "bg-[#FFE5E5] text-red-600"
                           : "bg-[#6E9271] text-white"
                       }`}
                     >
-                      {menu.visible_parents
-                        ? "Retirer du partage"
-                        : "Partager aux parents"}
+                      {menu.menu_actif
+                        ? "Retirer des parents"
+                        : "Afficher aux parents"}
                     </button>
 
                     <button

@@ -17,6 +17,18 @@ type Enfant = {
   user_id?: string;
 };
 
+type MenuSauvegarde = {
+  id: string;
+  created_at: string;
+  user_id: string;
+  titre: string;
+  periode: string;
+  menus: MenuJour[];
+  courses: any;
+  visible_parents: boolean;
+  menu_actif: boolean;
+};
+
 type MenuJour = {
   index: number;
   semaine: number;
@@ -973,6 +985,8 @@ export default function GenerateurPage() {
   const [enfantsConnectes, setEnfantsConnectes] = useState<Enfant[]>([]);
   const [modeProActif, setModeProActif] = useState(false);
   const [chargementEnfants, setChargementEnfants] = useState(true);
+  const [menusSauvegardes, setMenusSauvegardes] = useState<MenuSauvegarde[]>([]);
+  const [chargementMenusSauvegardes, setChargementMenusSauvegardes] = useState(true);
 
   const [enfantsParJour, setEnfantsParJour] = useState<Record<string, number>>({
     Lundi: 0,
@@ -984,6 +998,7 @@ export default function GenerateurPage() {
 
   useEffect(() => {
     chargerEnfantsConnectes();
+    chargerMenusSauvegardes();
   }, []);
 
   async function chargerEnfantsConnectes() {
@@ -1012,6 +1027,75 @@ export default function GenerateurPage() {
 
     setEnfantsConnectes(data || []);
     setChargementEnfants(false);
+  }
+
+  async function chargerMenusSauvegardes() {
+    setChargementMenusSauvegardes(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setChargementMenusSauvegardes(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("saved_menus")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log(error);
+      setChargementMenusSauvegardes(false);
+      return;
+    }
+
+    setMenusSauvegardes(data || []);
+    setChargementMenusSauvegardes(false);
+  }
+
+  async function definirMenuActif(menuId: string) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Tu dois être connectée.");
+      return;
+    }
+
+    const menuChoisi = menusSauvegardes.find((menu) => menu.id === menuId);
+    const rendreActif = !menuChoisi?.menu_actif;
+
+    const { error: erreurReset } = await supabase
+      .from("saved_menus")
+      .update({ menu_actif: false, visible_parents: false })
+      .eq("user_id", user.id);
+
+    if (erreurReset) {
+      console.log(erreurReset);
+      alert("Erreur lors de la mise à jour des menus.");
+      return;
+    }
+
+    if (rendreActif) {
+      const { error } = await supabase
+        .from("saved_menus")
+        .update({ menu_actif: true, visible_parents: true })
+        .eq("id", menuId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.log(error);
+        alert("Erreur lors du partage du menu.");
+        return;
+      }
+    }
+
+    await chargerMenusSauvegardes();
   }
 
   function appliquerEnfantsDuCompte() {
@@ -1172,6 +1256,8 @@ export default function GenerateurPage() {
         periode: mode,
         menus,
         courses: listesCourses,
+        visible_parents: false,
+        menu_actif: false,
       },
     ]);
 
@@ -1182,6 +1268,7 @@ export default function GenerateurPage() {
     }
 
     alert("Menu enregistré ✅");
+    await chargerMenusSauvegardes();
   }
 
   return (
@@ -1373,6 +1460,67 @@ export default function GenerateurPage() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 rounded-[2rem] border border-[#E7E2D8] bg-[#F8F6F2] p-6">
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#6B8F71]">
+                  Menus enregistrés
+                </p>
+
+                <h3 className="text-2xl font-bold">
+                  Choisir le menu visible dans l’espace parents
+                </h3>
+
+                <p className="text-gray-600">
+                  Coche un menu pour l’afficher aux parents. Si tu coches un nouveau menu,
+                  l’ancien sera automatiquement retiré.
+                </p>
+              </div>
+
+              {chargementMenusSauvegardes ? (
+                <p className="mt-5 text-gray-600">Chargement des menus enregistrés...</p>
+              ) : menusSauvegardes.length === 0 ? (
+                <p className="mt-5 text-gray-600">
+                  Aucun menu enregistré pour le moment.
+                </p>
+              ) : (
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {menusSauvegardes.map((menu) => (
+                    <label
+                      key={menu.id}
+                      className={`cursor-pointer rounded-2xl border p-5 transition ${
+                        menu.menu_actif
+                          ? "border-[#6B8F71] bg-white shadow-sm"
+                          : "border-[#E7E2D8] bg-white"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={menu.menu_actif}
+                          onChange={() => definirMenuActif(menu.id)}
+                          className="mt-1 h-5 w-5"
+                        />
+
+                        <div>
+                          <p className="text-lg font-bold">{menu.titre}</p>
+
+                          <p className="mt-1 text-sm text-gray-600">
+                            {menu.periode === "mois" ? "Menu mensuel" : "Menu semaine"}
+                          </p>
+
+                          {menu.menu_actif && (
+                            <p className="mt-3 rounded-full bg-[#E8F2EA] px-3 py-1 text-sm font-bold text-[#56735B]">
+                              Visible parents ✅
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               )}
             </div>
