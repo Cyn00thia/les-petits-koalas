@@ -14,8 +14,20 @@ type Enfant = {
   nom: string;
   date_naissance: string;
   jours_presence: string[];
-  user_id?: string;
+
+  fruits_introduits?: string[];
+  legumes_introduits?: string[];
+  feculents_introduits?: string[];
+  vvpo_introduits?: string[];
+  matieres_grasses_introduites?: string[];
+  herbes_introduites?: string[];
+  autres_introduits?: string[];
+
+  allergies?: string[];
+  allergies_remarques?: string;
   texture_alimentaire?: string;
+
+  user_id?: string;
 };
 
 type MenuSauvegarde = {
@@ -971,6 +983,97 @@ function libelleTrancheAge(age: Age) {
   return "18 mois et +";
 }
 
+function libelleTextureAlimentaire(texture?: string) {
+  if (texture === "mixe") return "Mixé";
+  if (texture === "ecrase") return "Écrasé";
+  if (texture === "morceaux_fondants") return "Morceaux fondants";
+  if (texture === "morceaux_autonomes") return "Morceaux autonomes";
+  return "Non précisée";
+}
+
+function resumeIntroductions(enfant: Enfant) {
+  return (
+    (enfant.fruits_introduits?.length || 0) +
+    (enfant.legumes_introduits?.length || 0) +
+    (enfant.feculents_introduits?.length || 0) +
+    (enfant.vvpo_introduits?.length || 0) +
+    (enfant.matieres_grasses_introduites?.length || 0) +
+    (enfant.herbes_introduites?.length || 0) +
+    (enfant.autres_introduits?.length || 0)
+  );
+}
+
+function groupeTextures(enfants: Enfant[]) {
+  const textures = new Set(
+    enfants.map((enfant) => enfant.texture_alimentaire).filter(Boolean)
+  );
+
+  if (textures.size === 0) return "Aucune texture précisée";
+
+  return Array.from(textures)
+    .map((texture) => libelleTextureAlimentaire(texture))
+    .join(" • ");
+}
+
+function allergieBloquante(enfant: Enfant, alimentsTexte: string) {
+  const allergies = enfant.allergies || [];
+  const texte = alimentsTexte.toLowerCase();
+
+  return allergies.some((allergie) => {
+    const a = allergie.toLowerCase();
+
+    if (a.includes("œuf") || a.includes("oeuf")) {
+      return texte.includes("œuf") || texte.includes("oeuf");
+    }
+
+    if (a.includes("poisson")) {
+      return (
+        poissonsMaigres.some((p) => texte.includes(p.toLowerCase())) ||
+        poissonsGras.some((p) => texte.includes(p.toLowerCase())) ||
+        poissonsBlancs.some((p) => texte.includes(p.toLowerCase()))
+      );
+    }
+
+    if (a.includes("lait")) {
+      return (
+        texte.includes("lait") ||
+        texte.includes("fromage") ||
+        texte.includes("yaourt") ||
+        texte.includes("beurre")
+      );
+    }
+
+    if (a.includes("gluten") || a.includes("blé")) {
+      return (
+        texte.includes("pâtes") ||
+        texte.includes("semoule") ||
+        texte.includes("boulgour") ||
+        texte.includes("blé") ||
+        texte.includes("pain")
+      );
+    }
+
+    return texte.includes(a);
+  });
+}
+
+function verifierMenuPourEnfants(menu: MenuJour, enfants: Enfant[]) {
+  const alimentsTexte = [
+    menu.soupe,
+    menu.diner.feculent,
+    menu.diner.legumes,
+    menu.diner.proteine,
+    menu.diner.matiereGrasse,
+    menu.diner.herbe,
+    menu.gouter.fruit,
+    menu.gouter.bebe,
+    menu.gouter.laitier18,
+  ].join(" ");
+
+  return enfants.filter((enfant) => allergieBloquante(enfant, alimentsTexte));
+}
+
+
 
 
 
@@ -1031,7 +1134,7 @@ export default function GenerateurPage() {
 
     const { data, error } = await supabase
       .from("children")
-      .select("id, nom, date_naissance, jours_presence, user_id, texture_alimentaire")
+      .select("*")
       .eq("user_id", user.id)
       .order("nom");
 
@@ -1461,6 +1564,20 @@ export default function GenerateurPage() {
                             ? enfant.jours_presence.join(" • ")
                             : "Aucun jour défini"}
                         </p>
+
+                        <p className="mt-2 text-sm text-gray-700">
+                          Texture : {libelleTextureAlimentaire(enfant.texture_alimentaire)}
+                        </p>
+
+                        <p className="mt-2 text-sm text-gray-700">
+                          Introductions : {resumeIntroductions(enfant)} aliment(s)
+                        </p>
+
+                        {!!enfant.allergies?.length && (
+                          <p className="mt-2 rounded-full bg-[#FFE5E5] px-3 py-1 text-xs font-bold text-red-500">
+                            Allergie(s) : {enfant.allergies.join(", ")}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
@@ -1493,6 +1610,18 @@ export default function GenerateurPage() {
                               ? presents.map((enfant) => enfant.nom).join(", ")
                               : "Aucun"}
                           </p>
+
+                          {presents.length > 0 && (
+                            <p className="mt-2 text-xs text-gray-600">
+                              Textures : {groupeTextures(presents)}
+                            </p>
+                          )}
+
+                          {presents.some((enfant) => enfant.allergies?.length) && (
+                            <p className="mt-2 rounded-full bg-[#FFE5E5] px-3 py-1 text-xs font-bold text-red-500">
+                              Attention allergie
+                            </p>
+                          )}
                         </div>
                       );
                     })}
@@ -1812,23 +1941,66 @@ export default function GenerateurPage() {
                       )}
                     </div>
 
+                    {modeProActif && (
+                      <div className="mt-6 rounded-2xl bg-[#FFF8E8] p-5">
+                        <p className="font-bold text-[#B2782D]">
+                          Vérification automatique du groupe
+                        </p>
+
+                        {(() => {
+                          const presents = enfantsPresentsLeJour(menu.jourCourt);
+                          const allergiesDetectees = verifierMenuPourEnfants(menu, presents);
+
+                          return (
+                            <div className="mt-3 space-y-3 text-sm leading-relaxed text-gray-700">
+                              <p>
+                                Enfants présents :{" "}
+                                {presents.length
+                                  ? presents.map((enfant) => enfant.nom).join(", ")
+                                  : "aucun enfant renseigné ce jour"}
+                              </p>
+
+                              {presents.length > 0 && (
+                                <p>Textures du groupe : {groupeTextures(presents)}</p>
+                              )}
+
+                              {allergiesDetectees.length > 0 ? (
+                                <div className="rounded-2xl bg-[#FFE5E5] p-4 text-red-600">
+                                  <p className="font-bold">
+                                    Attention : allergie possible détectée
+                                  </p>
+                                  <p className="mt-1">
+                                    {allergiesDetectees
+                                      .map((enfant) => enfant.nom)
+                                      .join(", ")}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="rounded-2xl bg-white p-4">
+                                  Aucune allergie détectée automatiquement pour ce menu.
+                                </p>
+                              )}
+
+                              <p className="rounded-2xl bg-white p-4 text-xs text-gray-600">
+                                Cette vérification reste une aide : les consignes des parents,
+                                les protocoles médicaux et l’observation de l’enfant restent prioritaires.
+                              </p>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
 
                     <div className="mt-6 rounded-2xl bg-[#F1F7EC] p-5">
                       <p className="font-bold text-[#6B8F71]">🌿 Adaptation des repas</p>
 
                       <p className="mt-3 text-sm leading-relaxed text-gray-700">
-                        Les textures alimentaires sont définies directement dans chaque fiche enfant.
-                        Le générateur utilise les âges et les présences pour proposer une base commune,
-                        puis les adaptations plus détaillées pourront être consultées dans l’onglet Recettes.
-                      </p>
-
-                      <p className="mt-4 rounded-2xl bg-white p-3 text-xs leading-relaxed text-gray-600">
-                        Les idées de présentation, astuces de cuisson et fiches “Le savais-tu ?”
-                        seront regroupées dans les onglets Recettes et Le savais-tu afin de garder
-                        le générateur clair et pratique.
+                        Les textures, allergies et introductions alimentaires sont définies dans chaque fiche enfant.
+                        Le générateur récupère ces informations pour aider à vérifier la cohérence du menu,
+                        tout en gardant les idées de présentation dans l’onglet Recettes et les informations
+                        pédagogiques dans l’onglet Le savais-tu.
                       </p>
                     </div>
-
                   </article>
                 ))}
               </section>
