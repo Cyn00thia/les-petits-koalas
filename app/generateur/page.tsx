@@ -1080,6 +1080,53 @@ function verifierMenuPourEnfants(menu: MenuJour, enfants: Enfant[]) {
 
 
 
+
+function alternativesIntroduites(
+  enfant: Enfant,
+  categorie: "legume" | "feculent" | "proteine"
+) {
+  if (categorie === "legume") return enfant.legumes_introduits || [];
+  if (categorie === "feculent") return enfant.feculents_introduits || [];
+  return enfant.vvpo_introduits || [];
+}
+
+function verifierIntroductions(menu: MenuJour, enfants: Enfant[]) {
+  const alertes: any[] = [];
+
+  enfants.forEach((enfant) => {
+    const legumes = enfant.legumes_introduits || [];
+    const feculents = enfant.feculents_introduits || [];
+    const proteines = enfant.vvpo_introduits || [];
+
+    if (legumes.length > 0 && !legumes.includes(menu.diner.legumes)) {
+      alertes.push({
+        enfant: enfant.nom,
+        aliment: menu.diner.legumes,
+        alternatives: alternativesIntroduites(enfant, "legume"),
+      });
+    }
+
+    if (feculents.length > 0 && !feculents.includes(menu.diner.feculent)) {
+      alertes.push({
+        enfant: enfant.nom,
+        aliment: menu.diner.feculent,
+        alternatives: alternativesIntroduites(enfant, "feculent"),
+      });
+    }
+
+    if (proteines.length > 0 && !proteines.includes(menu.diner.proteine)) {
+      alertes.push({
+        enfant: enfant.nom,
+        aliment: menu.diner.proteine,
+        alternatives: alternativesIntroduites(enfant, "proteine"),
+      });
+    }
+  });
+
+  return alertes;
+}
+
+
 const reglesImportantes = [
   "Eau tous les jours. Jus, sirops et eaux aromatisées de commerce : jamais.",
   "Cubes de bouillon industriels et sel ajouté : à exclure des préparations.",
