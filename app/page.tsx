@@ -243,7 +243,7 @@ export default function HomePage() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <Link
-                href="/recettes"
+                href="/bibliotheque"
                 className="rounded-[1.5rem] bg-[#FFF4EB] p-5 transition hover:scale-[1.01]"
               >
                 <p className="text-xs font-bold text-[#7B6A59]">Idée présentation</p>
