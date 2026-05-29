@@ -319,6 +319,7 @@ export default function EnfantsPage() {
   const [enfantAllergies, setEnfantAllergies] = useState<Enfant | null>(null);
   const [allergiesTemp, setAllergiesTemp] = useState<string[]>([]);
   const [remarqueAllergiesTemp, setRemarqueAllergiesTemp] = useState("");
+  const [nouvelleAllergie, setNouvelleAllergie] = useState("");
   const [nouvelAliment, setNouvelAliment] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -513,6 +514,31 @@ export default function EnfantsPage() {
         ? prev.filter((item) => item !== allergie)
         : [...prev, allergie]
     );
+  }
+
+  function ajouterAllergieManuelle() {
+    const allergie = nouvelleAllergie.trim();
+
+    if (!allergie) {
+      alert("Écris d’abord le nom de l’allergie ou de l’aliment à éviter.");
+      return;
+    }
+
+    if (
+      allergiesTemp.some(
+        (item) => item.toLowerCase() === allergie.toLowerCase()
+      )
+    ) {
+      alert("Cette allergie ou cet aliment est déjà enregistré.");
+      return;
+    }
+
+    setAllergiesTemp((prev) => [...prev, allergie]);
+    setNouvelleAllergie("");
+  }
+
+  function retirerAllergie(allergie: string) {
+    setAllergiesTemp((prev) => prev.filter((item) => item !== allergie));
   }
 
   async function modifierAlimentationComplete(enfant: Enfant, valeur: boolean) {
@@ -1097,6 +1123,68 @@ export default function EnfantsPage() {
                     {allergie}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-[2rem] bg-[#F7F4EE] p-6">
+              <h3 className="text-2xl font-black text-[#1E2A1F]">
+                Allergies / aliments enregistrés
+              </h3>
+
+              {allergiesTemp.length === 0 ? (
+                <p className="mt-4 text-sm leading-relaxed text-[#5C655E]">
+                  Aucune allergie ou aliment à éviter enregistré pour le moment.
+                </p>
+              ) : (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {allergiesTemp.map((allergie) => (
+                    <span
+                      key={allergie}
+                      className="inline-flex items-center gap-2 rounded-full bg-[#FFE5E5] px-4 py-2 text-sm font-bold text-red-500"
+                    >
+                      {allergie}
+
+                      <button
+                        type="button"
+                        onClick={() => retirerAllergie(allergie)}
+                        className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-black text-red-500"
+                        aria-label={`Retirer ${allergie}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-6 rounded-[1.5rem] bg-white p-4">
+                <p className="text-sm font-black text-red-400">
+                  Ajouter manuellement une allergie ou un aliment à éviter
+                </p>
+
+                <div className="mt-3 flex flex-col gap-3 md:flex-row">
+                  <input
+                    type="text"
+                    value={nouvelleAllergie}
+                    onChange={(e) => setNouvelleAllergie(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        ajouterAllergieManuelle();
+                      }
+                    }}
+                    placeholder="Exemple : kiwi, tomate, crevette, sarrasin..."
+                    className="flex-1 rounded-2xl border border-[#E8E1D5] px-5 py-3 outline-none"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={ajouterAllergieManuelle}
+                    className="rounded-2xl bg-red-400 px-6 py-3 font-bold text-white"
+                  >
+                    Ajouter
+                  </button>
+                </div>
               </div>
             </div>
 

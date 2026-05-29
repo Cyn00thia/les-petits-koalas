@@ -26,6 +26,7 @@ type Enfant = {
   allergies?: string[];
   allergies_remarques?: string;
   texture_alimentaire?: string;
+  alimentation_diversifiee_complete?: boolean;
 
   user_id?: string;
 };
@@ -1081,6 +1082,35 @@ function verifierMenuPourEnfants(menu: MenuJour, enfants: Enfant[]) {
 
 
 
+type AlerteIntroduction = {
+  enfant: string;
+  aliment: string;
+  categorie: "Légume" | "Féculent" | "VVP/O";
+  alternatives: string[];
+};
+
+function normaliserTexte(texte: string) {
+  return texte
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[œ]/g, "oe")
+    .trim();
+}
+
+function alimentEstIntroduit(aliment: string, liste: string[]) {
+  const alimentNormalise = normaliserTexte(aliment);
+
+  return liste.some((item) => {
+    const itemNormalise = normaliserTexte(item);
+
+    return (
+      alimentNormalise.includes(itemNormalise) ||
+      itemNormalise.includes(alimentNormalise)
+    );
+  });
+}
+
 function alternativesIntroduites(
   enfant: Enfant,
   categorie: "legume" | "feculent" | "proteine"
@@ -1091,34 +1121,47 @@ function alternativesIntroduites(
 }
 
 function verifierIntroductions(menu: MenuJour, enfants: Enfant[]) {
-  const alertes: any[] = [];
+  const alertes: AlerteIntroduction[] = [];
 
   enfants.forEach((enfant) => {
+    if (enfant.alimentation_diversifiee_complete) return;
+
     const legumes = enfant.legumes_introduits || [];
     const feculents = enfant.feculents_introduits || [];
     const proteines = enfant.vvpo_introduits || [];
 
-    if (legumes.length > 0 && !legumes.includes(menu.diner.legumes)) {
+    const legumesDuMenu = elementsDepuisTexte(menu.diner.legumes);
+
+    legumesDuMenu.forEach((legume) => {
+      if (legumes.length > 0 && !alimentEstIntroduit(legume, legumes)) {
+        alertes.push({
+          enfant: enfant.nom,
+          aliment: legume,
+          categorie: "Légume",
+          alternatives: alternativesIntroduites(enfant, "legume").slice(0, 4),
+        });
+      }
+    });
+
+    const feculent = menu.diner.feculent;
+
+    if (feculents.length > 0 && !alimentEstIntroduit(feculent, feculents)) {
       alertes.push({
         enfant: enfant.nom,
-        aliment: menu.diner.legumes,
-        alternatives: alternativesIntroduites(enfant, "legume"),
+        aliment: feculent,
+        categorie: "Féculent",
+        alternatives: alternativesIntroduites(enfant, "feculent").slice(0, 4),
       });
     }
 
-    if (feculents.length > 0 && !feculents.includes(menu.diner.feculent)) {
-      alertes.push({
-        enfant: enfant.nom,
-        aliment: menu.diner.feculent,
-        alternatives: alternativesIntroduites(enfant, "feculent"),
-      });
-    }
+    const proteine = menu.diner.proteine;
 
-    if (proteines.length > 0 && !proteines.includes(menu.diner.proteine)) {
+    if (proteines.length > 0 && !alimentEstIntroduit(proteine, proteines)) {
       alertes.push({
         enfant: enfant.nom,
-        aliment: menu.diner.proteine,
-        alternatives: alternativesIntroduites(enfant, "proteine"),
+        aliment: proteine,
+        categorie: "VVP/O",
+        alternatives: alternativesIntroduites(enfant, "proteine").slice(0, 4),
       });
     }
   });
@@ -1617,8 +1660,17 @@ export default function GenerateurPage() {
                         </p>
 
                         <p className="mt-2 text-sm text-gray-700">
-                          Introductions : {resumeIntroductions(enfant)} aliment(s)
+                          Introductions :{" "}
+                          {enfant.alimentation_diversifiee_complete
+                            ? "alimentation diversifiée complète"
+                            : `${resumeIntroductions(enfant)} aliment(s)`}
                         </p>
+
+                        {enfant.alimentation_diversifiee_complete && (
+                          <p className="mt-2 rounded-full bg-[#E8F2EA] px-3 py-1 text-xs font-bold text-[#56735B]">
+                            Tout introduit ✅
+                          </p>
+                        )}
 
                         {!!enfant.allergies?.length && (
                           <p className="mt-2 rounded-full bg-[#FFE5E5] px-3 py-1 text-xs font-bold text-red-500">
@@ -1661,6 +1713,12 @@ export default function GenerateurPage() {
                           {presents.length > 0 && (
                             <p className="mt-2 text-xs text-gray-600">
                               Textures : {groupeTextures(presents)}
+                            </p>
+                          )}
+
+                          {presents.some((enfant) => enfant.alimentation_diversifiee_complete) && (
+                            <p className="mt-2 rounded-full bg-[#E8F2EA] px-3 py-1 text-xs font-bold text-[#56735B]">
+                              Tout introduit pour certains enfants
                             </p>
                           )}
 
@@ -1997,6 +2055,10 @@ export default function GenerateurPage() {
                         {(() => {
                           const presents = enfantsPresentsLeJour(menu.jourCourt);
                           const allergiesDetectees = verifierMenuPourEnfants(menu, presents);
+                          const introductionsDetectees = verifierIntroductions(menu, presents);
+                          const enfantsToutIntroduit = presents.filter(
+                            (enfant) => enfant.alimentation_diversifiee_complete
+                          );
 
                           return (
                             <div className="mt-3 space-y-3 text-sm leading-relaxed text-gray-700">
@@ -2028,10 +2090,65 @@ export default function GenerateurPage() {
                                 </p>
                               )}
 
-                              <p className="rounded-2xl bg-white p-4 text-xs text-gray-600">
-                                Cette vérification reste une aide : les consignes des parents,
-                                les protocoles médicaux et l’observation de l’enfant restent prioritaires.
-                              </p>
+                              {introductionsDetectees.length > 0 ? (
+                                <div className="rounded-2xl bg-[#FFF4E5] p-4 text-[#9A641F]">
+                                  <p className="font-bold">
+                                    Aliments non introduits détectés
+                                  </p>
+
+                                  <div className="mt-3 space-y-3">
+                                    {introductionsDetectees.map((item, index) => (
+                                      <div key={`${item.enfant}-${item.aliment}-${index}`} className="rounded-2xl bg-white p-3">
+                                        <p className="font-bold">
+                                          ⚠ {item.aliment} non introduit chez {item.enfant}
+                                        </p>
+
+                                        <p className="mt-1 text-sm">
+                                          Catégorie : {item.categorie}
+                                        </p>
+
+                                        <p className="mt-1 text-sm">
+                                          Alternative proposée :{" "}
+                                          {item.alternatives.length > 0
+                                            ? item.alternatives.join(", ")
+                                            : "aucune alternative enregistrée dans cette catégorie"}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="rounded-2xl bg-white p-4">
+                                  Aucun aliment non introduit détecté automatiquement pour ce menu.
+                                </p>
+                              )}
+
+                              {enfantsToutIntroduit.length > 0 && (
+                                <p className="rounded-2xl bg-[#E8F2EA] p-4 text-[#56735B]">
+                                  Alimentation diversifiée complète :{" "}
+                                  {enfantsToutIntroduit
+                                    .map((enfant) => enfant.nom)
+                                    .join(", ")}
+                                </p>
+                              )}
+
+                              <div className="rounded-2xl bg-white p-4">
+                                {allergiesDetectees.length === 0 &&
+                                introductionsDetectees.length === 0 ? (
+                                  <p className="font-bold text-[#56735B]">
+                                    ✅ Menu compatible avec le groupe selon les informations encodées.
+                                  </p>
+                                ) : (
+                                  <p className="font-bold text-[#B2782D]">
+                                    ⚠ Adaptation à prévoir pour un ou plusieurs enfants.
+                                  </p>
+                                )}
+
+                                <p className="mt-2 text-xs leading-relaxed text-gray-600">
+                                  Cette vérification reste une aide : les consignes des parents,
+                                  les protocoles médicaux et l’observation de l’enfant restent prioritaires.
+                                </p>
+                              </div>
                             </div>
                           );
                         })()}
@@ -2042,7 +2159,7 @@ export default function GenerateurPage() {
                       <p className="font-bold text-[#6B8F71]">🌿 Adaptation des repas</p>
 
                       <p className="mt-3 text-sm leading-relaxed text-gray-700">
-                        Les textures, allergies et introductions alimentaires sont définies dans chaque fiche enfant.
+                        Les textures, allergies, introductions alimentaires et l’option “alimentation diversifiée complète” sont définies dans chaque fiche enfant.
                         Le générateur récupère ces informations pour aider à vérifier la cohérence du menu,
                         tout en gardant les idées de présentation dans l’onglet Recettes et les informations
                         pédagogiques dans l’onglet Le savais-tu.
