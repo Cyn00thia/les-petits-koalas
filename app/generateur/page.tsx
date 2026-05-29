@@ -1085,7 +1085,7 @@ function verifierMenuPourEnfants(menu: MenuJour, enfants: Enfant[]) {
 type AlerteIntroduction = {
   enfant: string;
   aliment: string;
-  categorie: "Légume" | "Féculent" | "VVP/O";
+  categorie: "Légume" | "Féculent" | "VVP/O" | "Fruit" | "Matière grasse" | "Herbe / épice";
   alternatives: string[];
 };
 
@@ -1113,11 +1113,22 @@ function alimentEstIntroduit(aliment: string, liste: string[]) {
 
 function alternativesIntroduites(
   enfant: Enfant,
-  categorie: "legume" | "feculent" | "proteine"
+  categorie:
+    | "legume"
+    | "feculent"
+    | "proteine"
+    | "fruit"
+    | "matiereGrasse"
+    | "herbe"
 ) {
   if (categorie === "legume") return enfant.legumes_introduits || [];
   if (categorie === "feculent") return enfant.feculents_introduits || [];
-  return enfant.vvpo_introduits || [];
+  if (categorie === "proteine") return enfant.vvpo_introduits || [];
+  if (categorie === "fruit") return enfant.fruits_introduits || [];
+  if (categorie === "matiereGrasse") {
+    return enfant.matieres_grasses_introduites || [];
+  }
+  return enfant.herbes_introduites || [];
 }
 
 function verifierIntroductions(menu: MenuJour, enfants: Enfant[]) {
@@ -1126,9 +1137,12 @@ function verifierIntroductions(menu: MenuJour, enfants: Enfant[]) {
   enfants.forEach((enfant) => {
     if (enfant.alimentation_diversifiee_complete) return;
 
+    const fruits = enfant.fruits_introduits || [];
     const legumes = enfant.legumes_introduits || [];
     const feculents = enfant.feculents_introduits || [];
     const proteines = enfant.vvpo_introduits || [];
+    const matieresGrasses = enfant.matieres_grasses_introduites || [];
+    const herbes = enfant.herbes_introduites || [];
 
     const legumesDuMenu = elementsDepuisTexte(menu.diner.legumes);
 
@@ -1164,9 +1178,252 @@ function verifierIntroductions(menu: MenuJour, enfants: Enfant[]) {
         alternatives: alternativesIntroduites(enfant, "proteine").slice(0, 4),
       });
     }
+
+    const fruitsDuGouter = [
+      ...menu.gouter.fruit.split("+").map((fruit) => fruit.trim()),
+      ...menu.gouter.bebe
+        .replace("Compote", "")
+        .split("-")
+        .map((fruit) => fruit.trim()),
+    ].filter(Boolean);
+
+    fruitsDuGouter.forEach((fruit) => {
+      if (fruits.length > 0 && !alimentEstIntroduit(fruit, fruits)) {
+        alertes.push({
+          enfant: enfant.nom,
+          aliment: fruit,
+          categorie: "Fruit",
+          alternatives: alternativesIntroduites(enfant, "fruit").slice(0, 4),
+        });
+      }
+    });
+
+    const matiereGrasse = menu.diner.matiereGrasse;
+
+    if (
+      matieresGrasses.length > 0 &&
+      !alimentEstIntroduit(matiereGrasse, matieresGrasses)
+    ) {
+      alertes.push({
+        enfant: enfant.nom,
+        aliment: matiereGrasse,
+        categorie: "Matière grasse",
+        alternatives: alternativesIntroduites(enfant, "matiereGrasse").slice(0, 4),
+      });
+    }
+
+    const herbe = menu.diner.herbe;
+
+    if (herbes.length > 0 && !alimentEstIntroduit(herbe, herbes)) {
+      alertes.push({
+        enfant: enfant.nom,
+        aliment: herbe,
+        categorie: "Herbe / épice",
+        alternatives: alternativesIntroduites(enfant, "herbe").slice(0, 4),
+      });
+    }
   });
 
   return alertes;
+}
+
+type AlerteAllergie = {
+  enfant: string;
+  allergies: string[];
+  alternatives: string[];
+};
+
+function alternativesPourAllergie(enfant: Enfant, alimentTexte: string) {
+  const texte = normaliserTexte(alimentTexte);
+
+  if (
+    poissonsMaigres.some((p) => texte.includes(normaliserTexte(p))) ||
+    poissonsGras.some((p) => texte.includes(normaliserTexte(p))) ||
+    poissonsBlancs.some((p) => texte.includes(normaliserTexte(p)))
+  ) {
+    return (enfant.vvpo_introduits || []).filter(
+      (item) =>
+        !poissonsMaigres.includes(item) &&
+        !poissonsGras.includes(item) &&
+        !poissonsBlancs.includes(item)
+    );
+  }
+
+  if (
+    texte.includes("oeuf") ||
+    texte.includes("poulet") ||
+    texte.includes("dinde") ||
+    texte.includes("boeuf") ||
+    texte.includes("porc") ||
+    texte.includes("veau")
+  ) {
+    return enfant.vvpo_introduits || [];
+  }
+
+  if (
+    texte.includes("pomme") ||
+    texte.includes("poire") ||
+    texte.includes("banane") ||
+    texte.includes("kiwi") ||
+    texte.includes("fraise")
+  ) {
+    return enfant.fruits_introduits || [];
+  }
+
+  if (
+    texte.includes("carotte") ||
+    texte.includes("courgette") ||
+    texte.includes("brocoli") ||
+    texte.includes("chou") ||
+    texte.includes("poireau")
+  ) {
+    return enfant.legumes_introduits || [];
+  }
+
+  if (
+    texte.includes("riz") ||
+    texte.includes("pates") ||
+    texte.includes("semoule") ||
+    texte.includes("pain") ||
+    texte.includes("boulgour")
+  ) {
+    return enfant.feculents_introduits || [];
+  }
+
+  return [
+    ...(enfant.fruits_introduits || []),
+    ...(enfant.legumes_introduits || []),
+    ...(enfant.feculents_introduits || []),
+    ...(enfant.vvpo_introduits || []),
+  ];
+}
+
+function analyserAllergies(menu: MenuJour, enfants: Enfant[]) {
+  const alimentsTexte = [
+    menu.soupe,
+    menu.diner.feculent,
+    menu.diner.legumes,
+    menu.diner.proteine,
+    menu.diner.matiereGrasse,
+    menu.diner.herbe,
+    menu.gouter.fruit,
+    menu.gouter.bebe,
+    menu.gouter.laitier18,
+  ].join(" ");
+
+  return enfants
+    .filter((enfant) => allergieBloquante(enfant, alimentsTexte))
+    .map((enfant) => ({
+      enfant: enfant.nom,
+      allergies: enfant.allergies || [],
+      alternatives: alternativesPourAllergie(enfant, alimentsTexte).slice(0, 4),
+    }));
+}
+
+function compterProteines(menus: MenuJour[]) {
+  const result = {
+    poisson: 0,
+    poissonGras: 0,
+    poissonMaigreOuBlanc: 0,
+    oeuf: 0,
+    volaille: 0,
+    viande: 0,
+    vegetarien: 0,
+  };
+
+  menus.forEach((menu) => {
+    const proteine = menu.diner.proteine;
+
+    if (poissonsGras.includes(proteine)) {
+      result.poisson += 1;
+      result.poissonGras += 1;
+    } else if (
+      poissonsMaigres.includes(proteine) ||
+      poissonsBlancs.includes(proteine)
+    ) {
+      result.poisson += 1;
+      result.poissonMaigreOuBlanc += 1;
+    } else if (proteine === "Œuf") {
+      result.oeuf += 1;
+    } else if (["Poulet", "Dinde"].includes(proteine)) {
+      result.volaille += 1;
+    } else if (["Bœuf", "Veau", "Porc"].includes(proteine)) {
+      result.viande += 1;
+    } else {
+      result.vegetarien += 1;
+    }
+  });
+
+  return result;
+}
+
+function compterFeculents(menus: MenuJour[]) {
+  const result = {
+    pommesDeTerre: 0,
+    cereales: 0,
+    legumineuses: 0,
+  };
+
+  menus.forEach((menu) => {
+    const feculent = normaliserTexte(menu.diner.feculent);
+
+    if (feculent.includes("pomme") || feculent.includes("patate")) {
+      result.pommesDeTerre += 1;
+    } else if (
+      feculent.includes("lentille") ||
+      feculent.includes("pois chiche") ||
+      feculent.includes("haricot")
+    ) {
+      result.legumineuses += 1;
+    } else {
+      result.cereales += 1;
+    }
+  });
+
+  return result;
+}
+
+function analyseFrequences(menus: MenuJour[]) {
+  const proteines = compterProteines(menus);
+  const feculents = compterFeculents(menus);
+
+  return [
+    {
+      label: "Poissons",
+      valeur: proteines.poisson,
+      objectif: menus.length >= 20 ? "6 à 8 / mois" : "1 à 2 / semaine",
+    },
+    {
+      label: "Œufs",
+      valeur: proteines.oeuf,
+      objectif: menus.length >= 20 ? "4 / mois" : "environ 1 / semaine",
+    },
+    {
+      label: "Volaille",
+      valeur: proteines.volaille,
+      objectif: menus.length >= 20 ? "2 à 4 / mois" : "variable",
+    },
+    {
+      label: "Viande bœuf / veau / porc",
+      valeur: proteines.viande,
+      objectif: menus.length >= 20 ? "2 à 3 / mois" : "occasionnel",
+    },
+    {
+      label: "Pommes de terre / patate douce",
+      valeur: feculents.pommesDeTerre,
+      objectif: menus.length >= 20 ? "8 à 12 / mois" : "2 à 3 / semaine",
+    },
+    {
+      label: "Céréales et autres féculents",
+      valeur: feculents.cereales,
+      objectif: menus.length >= 20 ? "8 à 12 / mois" : "2 à 3 / semaine",
+    },
+    {
+      label: "Légumineuses",
+      valeur: feculents.legumineuses,
+      objectif: menus.length >= 20 ? "2 à 4 / mois" : "occasionnel",
+    },
+  ];
 }
 
 
@@ -2054,7 +2311,7 @@ export default function GenerateurPage() {
 
                         {(() => {
                           const presents = enfantsPresentsLeJour(menu.jourCourt);
-                          const allergiesDetectees = verifierMenuPourEnfants(menu, presents);
+                          const allergiesAnalysees = analyserAllergies(menu, presents);
                           const introductionsDetectees = verifierIntroductions(menu, presents);
                           const enfantsToutIntroduit = presents.filter(
                             (enfant) => enfant.alimentation_diversifiee_complete
@@ -2073,16 +2330,31 @@ export default function GenerateurPage() {
                                 <p>Textures du groupe : {groupeTextures(presents)}</p>
                               )}
 
-                              {allergiesDetectees.length > 0 ? (
+                              {allergiesAnalysees.length > 0 ? (
                                 <div className="rounded-2xl bg-[#FFE5E5] p-4 text-red-600">
                                   <p className="font-bold">
                                     Attention : allergie possible détectée
                                   </p>
-                                  <p className="mt-1">
-                                    {allergiesDetectees
-                                      .map((enfant) => enfant.nom)
-                                      .join(", ")}
-                                  </p>
+                                  <div className="mt-3 space-y-3">
+                                    {allergiesAnalysees.map((item, index) => (
+                                      <div key={`${item.enfant}-allergie-${index}`} className="rounded-2xl bg-white p-3 text-red-600">
+                                        <p className="font-bold">
+                                          ⚠ Allergie possible chez {item.enfant}
+                                        </p>
+
+                                        <p className="mt-1 text-sm">
+                                          Allergie(s) enregistrée(s) : {item.allergies.join(", ")}
+                                        </p>
+
+                                        <p className="mt-1 text-sm">
+                                          Alternative possible :{" "}
+                                          {item.alternatives.length > 0
+                                            ? item.alternatives.join(", ")
+                                            : "aucune alternative enregistrée"}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               ) : (
                                 <p className="rounded-2xl bg-white p-4">
@@ -2133,7 +2405,7 @@ export default function GenerateurPage() {
                               )}
 
                               <div className="rounded-2xl bg-white p-4">
-                                {allergiesDetectees.length === 0 &&
+                                {allergiesAnalysees.length === 0 &&
                                 introductionsDetectees.length === 0 ? (
                                   <p className="font-bold text-[#56735B]">
                                     ✅ Menu compatible avec le groupe selon les informations encodées.
@@ -2167,6 +2439,35 @@ export default function GenerateurPage() {
                     </div>
                   </article>
                 ))}
+              </section>
+
+
+              <section className="mt-10 rounded-[2rem] bg-white p-8 shadow-sm">
+                <h2 className="text-3xl font-bold">📊 Contrôle des fréquences</h2>
+
+                <p className="mt-3 text-sm leading-relaxed text-gray-600">
+                  Ce tableau donne un repère rapide sur la répartition du menu généré.
+                  Il ne remplace pas une validation professionnelle, mais aide à repérer
+                  les grands équilibres.
+                </p>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {analyseFrequences(menus).map((item) => (
+                    <div key={item.label} className="rounded-2xl bg-[#F7F3EA] p-5">
+                      <p className="text-lg font-bold text-[#243024]">
+                        {item.label}
+                      </p>
+
+                      <p className="mt-2 text-3xl font-black text-[#6B8F71]">
+                        {item.valeur}
+                      </p>
+
+                      <p className="mt-2 text-sm text-gray-600">
+                        Repère : {item.objectif}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </section>
 
               <section className="mt-10 rounded-[2rem] bg-white p-8 shadow-sm">
