@@ -21,6 +21,7 @@ type Enfant = {
   allergies?: string[];
   allergies_remarques?: string;
   texture_alimentaire?: string;
+  alimentation_diversifiee_complete?: boolean;
 
   user_id?: string;
   code_parent?: string;
@@ -396,6 +397,7 @@ export default function EnfantsPage() {
       allergies: [],
       allergies_remarques: "",
       texture_alimentaire: "morceaux_fondants",
+      alimentation_diversifiee_complete: false,
 
       user_id: userId,
       code_parent: codeParent,
@@ -510,6 +512,33 @@ export default function EnfantsPage() {
       prev.includes(allergie)
         ? prev.filter((item) => item !== allergie)
         : [...prev, allergie]
+    );
+  }
+
+  async function modifierAlimentationComplete(enfant: Enfant, valeur: boolean) {
+    const { error } = await supabase
+      .from("children")
+      .update({ alimentation_diversifiee_complete: valeur })
+      .eq("id", enfant.id)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.log(error);
+      alert(JSON.stringify(error));
+      return;
+    }
+
+    const enfantMisAJour = {
+      ...enfant,
+      alimentation_diversifiee_complete: valeur,
+    };
+
+    setEnfants((prev) =>
+      prev.map((item) => (item.id === enfant.id ? enfantMisAJour : item))
+    );
+
+    setEnfantDiversification((prev) =>
+      prev && prev.id === enfant.id ? enfantMisAJour : prev
     );
   }
 
@@ -746,6 +775,12 @@ export default function EnfantsPage() {
                     Code parent : {enfant.code_parent || "—"}
                   </p>
 
+                  {enfant.alimentation_diversifiee_complete && (
+                    <p className="mt-3 mr-2 inline-block rounded-full bg-[#E8F2EA] px-4 py-2 text-sm font-bold text-[#56735B]">
+                      Alimentation diversifiée complète
+                    </p>
+                  )}
+
                   {!!enfant.allergies?.length && (
                     <p className="mt-3 inline-block rounded-full bg-[#FFE5E5] px-4 py-2 text-sm font-bold text-red-500">
                       Allergie(s) : {enfant.allergies.join(", ")}
@@ -880,7 +915,40 @@ export default function EnfantsPage() {
               </button>
             </div>
 
-            <div className="mt-8 grid gap-6">
+            <div className="mt-8 rounded-[2rem] bg-[#E8F2EA] p-6">
+              <label className="flex cursor-pointer items-start gap-4">
+                <input
+                  type="checkbox"
+                  checked={
+                    enfantDiversification.alimentation_diversifiee_complete ||
+                    false
+                  }
+                  onChange={(e) =>
+                    modifierAlimentationComplete(
+                      enfantDiversification,
+                      e.target.checked
+                    )
+                  }
+                  className="mt-1 h-6 w-6"
+                />
+
+                <div>
+                  <p className="text-xl font-black text-[#45654A]">
+                    Alimentation diversifiée complète
+                  </p>
+
+                  <p className="mt-2 text-sm leading-relaxed text-[#45654A]">
+                    À cocher si l’enfant peut consommer l’ensemble des aliments
+                    adaptés à son âge, hors allergies ou consignes particulières.
+                    Le générateur ne signalera alors plus les aliments non
+                    introduits pour cet enfant.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {!enfantDiversification.alimentation_diversifiee_complete ? (
+              <div className="mt-8 grid gap-6">
               {categoriesDiversification.map((categorie) => (
                 <div
                   key={categorie.key}
@@ -960,7 +1028,22 @@ export default function EnfantsPage() {
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            ) : (
+              <div className="mt-8 rounded-[2rem] bg-[#F7F4EE] p-8 text-center">
+                <div className="text-5xl">✅</div>
+
+                <h3 className="mt-4 text-3xl font-black text-[#1E2A1F]">
+                  Diversification complète
+                </h3>
+
+                <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-[#5C655E]">
+                  L’enfant est considéré comme pouvant consommer l’ensemble des
+                  aliments adaptés à son âge. Les allergies et consignes
+                  particulières restent prioritaires.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
