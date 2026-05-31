@@ -58,6 +58,7 @@ type MenuJour = {
     matiereGrasse: string;
     remarque: string;
     herbe: string;
+    legumesOrigine?: string;
   };
   gouter: {
     bebe: string;
@@ -76,6 +77,19 @@ type ListeCourses = {
   fruits: Record<string, number>;
   autres: Record<string, number>;
 };
+type OrigineAliment = "de saison" | "surgelé" | "stockable" | "hors saison";
+
+type AdaptationEnfant = {
+  enfant: string;
+  tranche: Age;
+  texture: string;
+  statut: "diversification_en_cours" | "diversification_complete";
+  feculent: string;
+  legumes: string;
+  proteine: string;
+  remarque: string;
+};
+
 
 const joursSemaine = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
 
@@ -238,6 +252,80 @@ const fruitsTous = [
   "Kaki",
   "Coing",
   "Reine-Claude",
+];
+
+const legumesSurgelesAutorises = [
+  "Carotte",
+  "Courgette",
+  "Haricots verts",
+  "Petits pois",
+  "Brocoli",
+  "Chou-fleur",
+  "Épinard",
+  "Poireau",
+  "Butternut",
+  "Potiron",
+  "Potimarron",
+];
+
+const legumesStockables = [
+  "Carotte",
+  "Butternut",
+  "Potiron",
+  "Potimarron",
+  "Navet",
+  "Panais",
+  "Céleri-rave",
+  "Betterave",
+];
+
+const cruditesReservees18Mois = [
+  "Laitue",
+  "Roquette",
+  "Concombre",
+  "Radis",
+  "Carotte râpée",
+  "Tomate crue",
+  "Endive crue",
+];
+
+const feculentsInterditsDansLegumes = [
+  "Pommes de terre",
+  "Pomme de terre",
+  "Pdt",
+  "Patate",
+  "Patate douce",
+];
+
+function estFeculentCacheDansLegumes(aliment: string) {
+  const alimentNormalise = normaliserTexte(aliment);
+
+  return feculentsInterditsDansLegumes.some((feculent) => {
+    const feculentNormalise = normaliserTexte(feculent);
+
+    return (
+      alimentNormalise === feculentNormalise ||
+      alimentNormalise.includes(feculentNormalise) ||
+      feculentNormalise.includes(alimentNormalise)
+    );
+  });
+}
+
+function filtrerLegumesSansFeculents(liste: string[]) {
+  return liste.filter((aliment) => !estFeculentCacheDansLegumes(aliment));
+}
+
+const legumesDouxBebe = [
+  "Carotte",
+  "Courgette",
+  "Brocoli",
+  "Haricots verts",
+  "Chou-fleur",
+  "Potimarron",
+  "Butternut",
+  "Panais",
+  "Poireau",
+  "Épinard",
 ];
 
 const saisons: Record<Saison, { legumes: string[]; soupes: string[]; fruits: string[] }> = {
@@ -714,9 +802,162 @@ function planningProteinesSemaine(semaineIndex: number, preference: Preference) 
   ];
 }
 
-function genererMenu(mode: ModePeriode, nombreJours: number, preference: Preference, saison: Saison): MenuJour[] {
+function alimentEstCruditeReservee18Mois(aliment: string) {
+  const alimentNormalise = normaliserTexte(aliment);
+
+  return cruditesReservees18Mois.some((crudite) =>
+    alimentNormalise.includes(normaliserTexte(crudite))
+  );
+}
+
+function origineLegume(aliment: string, saison: Saison, utiliserSurgeles: boolean): OrigineAliment {
+  const nom = nettoyerLegume(aliment);
+
+  if (saisons[saison].legumes.includes(nom)) return "de saison";
+  if (legumesStockables.includes(nom)) return "stockable";
+  if (utiliserSurgeles && legumesSurgelesAutorises.includes(nom)) return "surgelé";
+
+  return "hors saison";
+}
+
+function libelleOrigineLegume(aliment: string, saison: Saison, utiliserSurgeles: boolean) {
+  const origine = origineLegume(aliment, saison, utiliserSurgeles);
+  if (origine === "hors saison") return "";
+  return `(${origine})`;
+}
+
+function legumesDisponiblesPourGeneration(saison: Saison, utiliserSurgeles: boolean) {
+  const base = filtrerLegumesSansFeculents(saisons[saison].legumes);
+
+  if (!utiliserSurgeles) return base;
+
+  return filtrerLegumesSansFeculents(
+    Array.from(new Set([...base, ...legumesStockables, ...legumesSurgelesAutorises]))
+  );
+}
+
+function legumesAffichesAvecOrigine(legumes: string, saison: Saison, utiliserSurgeles: boolean) {
+  return elementsDepuisTexte(legumes)
+    .filter((legume) => !estFeculentCacheDansLegumes(legume))
+    .map((legume) => {
+      const origine = libelleOrigineLegume(legume, saison, utiliserSurgeles);
+      return origine ? `${legume} ${origine}` : legume;
+    })
+    .join(" + ");
+}
+
+function choisirAlternativeIntroduite(enfant: Enfant, liste: string[] | undefined, fallback: string[]) {
+  const introduits = liste?.filter(Boolean) || [];
+  if (introduits.length > 0) return introduits[0];
+
+  const legumesPossibles = fallback.filter((aliment) => !alimentEstCruditeReservee18Mois(aliment));
+  return legumesPossibles[0] || fallback[0];
+}
+
+function adapterLegumesPourEnfant(menu: MenuJour, enfant: Enfant) {
+  const ageMois = calculerAgeEnMois(enfant.date_naissance);
+  const legumesMenu = elementsDepuisTexte(menu.diner.legumes);
+  const legumesIntroduits = enfant.legumes_introduits || [];
+
+  const legumesAdaptes = legumesMenu.map((legume) => {
+    const cruditeNonAdaptee = ageMois < 18 && alimentEstCruditeReservee18Mois(legume);
+    const nonIntroduit =
+      !enfant.alimentation_diversifiee_complete &&
+      legumesIntroduits.length > 0 &&
+      !alimentEstIntroduit(legume, legumesIntroduits);
+
+    if (cruditeNonAdaptee || nonIntroduit) {
+      return choisirAlternativeIntroduite(enfant, legumesIntroduits, legumesDouxBebe);
+    }
+
+    return legume;
+  });
+
+  const uniques = Array.from(new Set(legumesAdaptes));
+  return uniques.join(" + ");
+}
+
+function adapterFeculentPourEnfant(menu: MenuJour, enfant: Enfant) {
+  if (enfant.alimentation_diversifiee_complete) return menu.diner.feculent;
+
+  const feculents = enfant.feculents_introduits || [];
+  if (feculents.length > 0 && !alimentEstIntroduit(menu.diner.feculent, feculents)) {
+    return feculents[0];
+  }
+
+  return menu.diner.feculent;
+}
+
+function adapterProteinePourEnfant(menu: MenuJour, enfant: Enfant) {
+  if (enfant.alimentation_diversifiee_complete) return menu.diner.proteine;
+
+  const proteines = enfant.vvpo_introduits || [];
+  if (proteines.length > 0 && !alimentEstIntroduit(menu.diner.proteine, proteines)) {
+    return proteines[0];
+  }
+
+  return menu.diner.proteine;
+}
+
+function genererAdaptationEnfant(menu: MenuJour, enfant: Enfant): AdaptationEnfant {
+  const ageMois = calculerAgeEnMois(enfant.date_naissance);
+  const tranche = trancheAgeDepuisMois(ageMois);
+  const texture = libelleTextureAlimentaire(enfant.texture_alimentaire);
+  const diversificationComplete = !!enfant.alimentation_diversifiee_complete;
+
+  const legumes = adapterLegumesPourEnfant(menu, enfant);
+  const feculent = adapterFeculentPourEnfant(menu, enfant);
+  const proteine = adapterProteinePourEnfant(menu, enfant);
+
+  const cruditesRemplacees =
+    ageMois < 18 &&
+    elementsDepuisTexte(menu.diner.legumes).some((legume) => alimentEstCruditeReservee18Mois(legume));
+
+  const adaptationNecessaire =
+    legumes !== menu.diner.legumes ||
+    feculent !== menu.diner.feculent ||
+    proteine !== menu.diner.proteine ||
+    tranche !== "18+" ||
+    !diversificationComplete;
+
+  let remarque = "Même base que le groupe, texture adaptée selon l’enfant.";
+
+  if (!diversificationComplete) {
+    remarque = "Diversification en cours : seuls les aliments déjà introduits sont privilégiés.";
+  }
+
+  if (cruditesRemplacees) {
+    remarque = "Crudité réservée aux plus grands : légume cuit adapté proposé pour cet enfant.";
+  }
+
+  if (tranche === "4-12") {
+    remarque = `${remarque} Pas de soupe : repas vapeur/mixé ou écrasé simple.`;
+  }
+
+  if (!adaptationNecessaire) {
+    remarque = "Repas du groupe compatible selon les informations encodées.";
+  }
+
+  return {
+    enfant: enfant.nom,
+    tranche,
+    texture,
+    statut: diversificationComplete ? "diversification_complete" : "diversification_en_cours",
+    feculent,
+    legumes,
+    proteine,
+    remarque,
+  };
+}
+
+function genererAdaptationsPourGroupe(menu: MenuJour, enfants: Enfant[]) {
+  return enfants.map((enfant) => genererAdaptationEnfant(menu, enfant));
+}
+
+function genererMenu(mode: ModePeriode, nombreJours: number, preference: Preference, saison: Saison, utiliserSurgeles: boolean): MenuJour[] {
   const total = mode === "mois" ? 20 : nombreJours;
   const dataSaison = saisons[saison];
+  const legumesDisponibles = legumesDisponiblesPourGeneration(saison, utiliserSurgeles);
   const menus: MenuJour[] = [];
 
   const legumesRecentsGlobaux: string[] = [];
@@ -753,7 +994,7 @@ function genererMenu(mode: ModePeriode, nombreJours: number, preference: Prefere
       const legumesInterdits = new Set([...legumesSoupe, ...legumesRecentsGlobaux]);
 
       const legume1 = choisirElementAvecMemoire(
-        dataSaison.legumes,
+        legumesDisponibles,
         utilisesLegumesSemaine,
         legumesRecentsGlobaux,
         legumesInterdits
@@ -763,7 +1004,7 @@ function genererMenu(mode: ModePeriode, nombreJours: number, preference: Prefere
 
       if (index % 2 === 0) {
         const legume2 = choisirElementAvecMemoire(
-          dataSaison.legumes,
+          legumesDisponibles,
           utilisesLegumesSemaine,
           legumesRecentsGlobaux,
           new Set([...legumesInterdits, ...elementsDepuisTexte(legume1)])
@@ -786,6 +1027,24 @@ function genererMenu(mode: ModePeriode, nombreJours: number, preference: Prefere
         );
       } else {
         utilisesFeculentsSemaine.add(feculentBase);
+      }
+
+      const legumesSansFeculentsCaches = elementsDepuisTexte(legumesRepas).filter(
+        (legume) => !estFeculentCacheDansLegumes(legume)
+      );
+
+      if (legumesSansFeculentsCaches.length === 0) {
+        const legumesSoupeActuelle = new Set(elementsDepuisTexte(soupe));
+        const remplacementLegume = choisirElementAvecMemoire(
+          legumesDisponibles,
+          utilisesLegumesSemaine,
+          legumesRecentsGlobaux,
+          new Set([...legumesSoupeActuelle])
+        );
+
+        legumesRepas = remplacementLegume;
+      } else {
+        legumesRepas = Array.from(new Set(legumesSansFeculentsCaches)).join(" + ");
       }
 
       let proteine = proteinesSemaine[jourIndex];
@@ -831,6 +1090,7 @@ function genererMenu(mode: ModePeriode, nombreJours: number, preference: Prefere
           proteine,
           matiereGrasse: choisirMatiereGrasseVariee(index),
           herbe: herbesAromatiques[(index * 2 + semaineIndex) % herbesAromatiques.length],
+          legumesOrigine: legumesAffichesAvecOrigine(legumesRepas, saison, utiliserSurgeles),
           remarque: "Soupe proposée uniquement aux enfants de 12 mois et +. Pour les moins de 12 mois : repas vapeur/mixé simple, sans soupe.",
         },
         gouter: {
@@ -888,9 +1148,11 @@ function calculerCourses(menus: MenuJour[], enfantsParJour: Record<string, numbe
       ajouter(liste.soupes, legume, convertirEnCru(legume, nb * 80));
     });
 
-    elementsDepuisTexte(menu.diner.legumes).forEach((legume) => {
-      ajouter(liste.legumes, legume, convertirEnCru(legume, nb * 120));
-    });
+    elementsDepuisTexte(menu.diner.legumes)
+      .filter((legume) => !estFeculentCacheDansLegumes(legume))
+      .forEach((legume) => {
+        ajouter(liste.legumes, legume, convertirEnCru(legume, nb * 120));
+      });
 
     ajouter(liste.feculents, menu.diner.feculent, convertirEnCru(menu.diner.feculent, nb * 120));
     ajouter(liste.proteines, menu.diner.proteine, convertirEnCru(menu.diner.proteine, nb * 25));
@@ -926,6 +1188,56 @@ function afficherQuantite(nom: string, quantite: number) {
 
   return `${Math.ceil(quantite)} g`;
 }
+
+
+function statutEnfantPourMenu(enfant: Enfant, menu: MenuJour) {
+  const ageMois = calculerAgeEnMois(enfant.date_naissance);
+  const tranche = trancheAgeDepuisMois(ageMois);
+  const legumes = elementsDepuisTexte(menu.diner.legumes);
+  const contientCrudite = legumes.some((legume) => cruditesReservees18Mois.includes(legume));
+  const doitAdapterCrudite = tranche !== "18+" && contientCrudite;
+  const texture = libelleTextureAlimentaire(enfant.texture_alimentaire);
+
+  if (doitAdapterCrudite) {
+    return {
+      label: "Adaptation douce",
+      detail: "Crudité remplacée par un légume cuit adapté.",
+      badge: "bg-[#FFF4E6] text-[#A06621]",
+      icon: "🔄",
+      ok: false,
+      texture,
+    };
+  }
+
+  if (tranche === "4-12") {
+    return {
+      label: "Version bébé",
+      detail: "Repas vapeur/mixé ou écrasé, sans soupe.",
+      badge: "bg-[#FFF4E6] text-[#A06621]",
+      icon: "👶",
+      ok: false,
+      texture,
+    };
+  }
+
+  return {
+    label: "Repas commun OK",
+    detail: "Compatible selon les informations encodées.",
+    badge: "bg-[#E8F2EA] text-[#45654A]",
+    icon: "✅",
+    ok: true,
+    texture,
+  };
+}
+
+function resumeGroupePourMenu(menu: MenuJour, enfants: Enfant[]) {
+  const presents = enfants.length;
+  const diversifEnCours = enfants.filter((enfant) => trancheAgeDepuisMois(calculerAgeEnMois(enfant.date_naissance)) === "4-12").length;
+  const adaptations = enfants.filter((enfant) => !statutEnfantPourMenu(enfant, menu).ok).length;
+
+  return { presents, diversifEnCours, adaptations };
+}
+
 
 function CoursesBloc({ titre, liste }: { titre: string; liste: Record<string, number> }) {
   const items = Object.entries(liste);
@@ -1440,6 +1752,7 @@ export default function GenerateurPage() {
   const [nombreJours, setNombreJours] = useState(5);
   const [preference, setPreference] = useState<Preference>("classique");
   const [saison, setSaison] = useState<Saison>(saisonActuelle());
+  const [utiliserSurgeles, setUtiliserSurgeles] = useState(true);
   const [menus, setMenus] = useState<MenuJour[]>([]);
   const [ages, setAges] = useState<Record<Age, boolean>>({
     "4-12": true,
@@ -1622,6 +1935,7 @@ export default function GenerateurPage() {
       const copie = [...prev];
       const menu = copie[index];
       const dataSaison = saisons[saison];
+      const legumesDisponibles = legumesDisponiblesPourGeneration(saison, utiliserSurgeles);
 
       if (champ === "soupe") {
         const legumesRepas = new Set(elementsDepuisTexte(menu.diner.legumes));
@@ -1638,11 +1952,12 @@ export default function GenerateurPage() {
 
       if (champ === "legumes") {
         const legumesSoupe = new Set(elementsDepuisTexte(menu.soupe));
-        const liste = dataSaison.legumes.filter((legume) =>
+        const liste = legumesDisponibles.filter((legume) =>
           elementsDepuisTexte(legume).every((element) => !legumesSoupe.has(element))
         );
 
-        menu.diner.legumes = prendreDifferent(liste.length > 0 ? liste : dataSaison.legumes, menu.diner.legumes);
+        menu.diner.legumes = prendreDifferent(liste.length > 0 ? liste : legumesDisponibles, menu.diner.legumes);
+        menu.diner.legumesOrigine = legumesAffichesAvecOrigine(menu.diner.legumes, saison, utiliserSurgeles);
       }
 
       if (champ === "proteine") {
@@ -1831,16 +2146,23 @@ export default function GenerateurPage() {
               soupe séparée, goûters adaptés et liste de courses en poids cru.
             </p>
 
-            <div className="mt-6 rounded-3xl bg-[#F1F7EC] p-5 text-sm leading-relaxed text-[#45654A]">
-              🌿 Les propositions restent adaptables : chaque enfant évolue à son propre rythme,
-              et chaque professionnelle adapte selon son groupe, son temps et la réalité du jour.
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-3xl bg-[#F1F7EC] p-5 text-sm leading-relaxed text-[#45654A]">
+                🌿 Menu commun lisible
+              </div>
+              <div className="rounded-3xl bg-[#FFF4E6] p-5 text-sm leading-relaxed text-[#A06621]">
+                🔄 Adaptations affichées seulement si nécessaire
+              </div>
+              <div className="rounded-3xl bg-[#F4F0FF] p-5 text-sm leading-relaxed text-[#6E5D8F]">
+                👶 Respect des âges, textures et introductions
+              </div>
             </div>
           </div>
 
           <section className="mt-8 rounded-[2rem] bg-white p-8 shadow-sm">
             <h2 className="text-3xl font-bold">Paramètres</h2>
 
-            <div className="mt-6 rounded-[2rem] border border-[#DCEBD6] bg-[#F1F7EC] p-6">
+            <div className="mt-6 rounded-[2rem] border border-[#DCEBD6] bg-[#F1F7EC] p-7 shadow-sm">
               <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#6B8F71]">
                 Repères professionnels
               </p>
@@ -1897,7 +2219,7 @@ export default function GenerateurPage() {
                     return (
                       <div
                         key={enfant.id}
-                        className="rounded-2xl bg-white p-4 shadow-sm"
+                        className="rounded-[1.5rem] bg-white p-5 shadow-sm ring-1 ring-black/5"
                       >
                         <p className="text-lg font-bold">{enfant.nom}</p>
 
@@ -1941,7 +2263,7 @@ export default function GenerateurPage() {
               )}
 
               {modeProActif && (
-                <div className="mt-6 rounded-2xl bg-white p-5">
+                <div className="mt-6 rounded-[1.5rem] bg-white p-5 shadow-sm ring-1 ring-black/5">
                   <p className="font-bold text-[#6B8F71]">
                     Mode pro activé ✅
                   </p>
@@ -2107,6 +2429,27 @@ export default function GenerateurPage() {
               </div>
             </div>
 
+            <div className="mt-6 rounded-2xl bg-[#F8F6F2] p-5">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={utiliserSurgeles}
+                  onChange={(e) => setUtiliserSurgeles(e.target.checked)}
+                  className="mt-1 h-5 w-5"
+                />
+
+                <span>
+                  <span className="block font-bold text-[#243024]">
+                    Autoriser les légumes surgelés nature
+                  </span>
+                  <span className="mt-1 block text-sm leading-relaxed text-gray-600">
+                    Permet au générateur de varier davantage les menus tout en affichant l’origine :
+                    de saison, stockable ou surgelé.
+                  </span>
+                </span>
+              </label>
+            </div>
+
             <div className="mt-6">
               <p className="mb-3 font-bold">Tranches d’âge présentes</p>
 
@@ -2169,7 +2512,7 @@ export default function GenerateurPage() {
             </div>
 
             <button
-              onClick={() => setMenus(genererMenu(mode, nombreJours, preference, saison))}
+              onClick={() => setMenus(genererMenu(mode, nombreJours, preference, saison, utiliserSurgeles))}
               className="mt-8 rounded-full bg-[#6B8F71] px-8 py-4 text-lg font-bold text-white"
             >
               Générer mon menu ✨
@@ -2195,250 +2538,457 @@ export default function GenerateurPage() {
               </div>
 
               <section className="mt-10 grid gap-6">
-                {menus.map((menu) => (
-                  <article key={menu.index} className="rounded-[2rem] bg-white p-8 shadow-sm">
-                    <h2 className="text-3xl font-bold">{menu.jour}</h2>
+                {menus.map((menu) => {
+                  const presents = modeProActif ? enfantsPresentsLeJour(menu.jourCourt) : [];
+                  const adaptations = modeProActif ? genererAdaptationsPourGroupe(menu, presents) : [];
+                  const allergiesAnalysees = modeProActif ? analyserAllergies(menu, presents) : [];
+                  const introductionsDetectees = modeProActif ? verifierIntroductions(menu, presents) : [];
+                  const estCompatible = allergiesAnalysees.length === 0 && introductionsDetectees.length === 0;
+                  const legumesCommuns =
+                    menu.diner.legumesOrigine ||
+                    legumesAffichesAvecOrigine(menu.diner.legumes, saison, utiliserSurgeles);
 
-                    <div className="mt-6 rounded-3xl bg-[#F8F8F4] p-6">
-                      <p className="font-bold text-[#6B8F71]">Dîner commun</p>
-                      <h3 className="mt-3 text-2xl font-bold">{menu.diner.plat}</h3>
+                  const lignesAdaptations =
+                    modeProActif && presents.length > 0
+                      ? adaptations.map((adaptation) => {
+                          const estRepasCommun =
+                            adaptation.feculent === menu.diner.feculent &&
+                            adaptation.legumes === menu.diner.legumes &&
+                            adaptation.proteine === menu.diner.proteine &&
+                            adaptation.tranche !== "4-12" &&
+                            adaptation.statut === "diversification_complete";
 
-                      <div className="mt-4 grid gap-4 md:grid-cols-7">
-                        <div>💧 {menu.diner.boisson}</div>
+                          const differences: string[] = [];
 
+                          if (adaptation.tranche === "4-12") {
+                            differences.push("Pas de soupe");
+                          }
+
+                          if (adaptation.feculent !== menu.diner.feculent) {
+                            differences.push(`Féculent : ${adaptation.feculent}`);
+                          }
+
+                          if (adaptation.legumes !== menu.diner.legumes) {
+                            differences.push(`Légumes : ${adaptation.legumes}`);
+                          }
+
+                          if (adaptation.proteine !== menu.diner.proteine) {
+                            differences.push(`VVP/O : ${adaptation.proteine}`);
+                          }
+
+                          if (!differences.length) {
+                            differences.push(estRepasCommun ? "Repas commun" : "Texture adaptée");
+                          }
+
+                          return {
+                            nom: adaptation.enfant,
+                            age: libelleTrancheAge(adaptation.tranche),
+                            texture: adaptation.texture,
+                            statut: estRepasCommun ? "commun" : "adapte",
+                            adaptation: differences.join(" • "),
+                            remarque: adaptation.remarque,
+                          };
+                        })
+                      : [
+                          {
+                            nom: "4–12 mois",
+                            age: "Repère",
+                            texture: "Mixé / écrasé",
+                            statut: "adapte",
+                            adaptation: "Pas de soupe • Repas vapeur/mixé simple",
+                            remarque: "Selon l’avancée de la diversification.",
+                          },
+                          {
+                            nom: "12–18 mois",
+                            age: "Repère",
+                            texture: "Fondant / mouliné",
+                            statut: "adapte",
+                            adaptation: "Soupe possible selon texture",
+                            remarque: "Texture adaptée à l’enfant.",
+                          },
+                          {
+                            nom: "18 mois et +",
+                            age: "Repère",
+                            texture: "Texture autonome",
+                            statut: "commun",
+                            adaptation: "Repas commun",
+                            remarque: "Présentation séparée si possible.",
+                          },
+                        ];
+
+                  const lignesGouter =
+                    modeProActif && presents.length > 0
+                      ? presents.map((enfant) => {
+                          const tranche = trancheAgeDepuisMois(calculerAgeEnMois(enfant.date_naissance));
+
+                          if (tranche === "4-12") {
+                            return {
+                              nom: enfant.nom,
+                              age: libelleTrancheAge(tranche),
+                              composition: menu.gouter.bebe,
+                              pain: "—",
+                              laitier: "—",
+                              remarque: "Compote adaptée, sans produit laitier.",
+                            };
+                          }
+
+                          if (tranche === "12-18") {
+                            return {
+                              nom: enfant.nom,
+                              age: libelleTrancheAge(tranche),
+                              composition: menu.gouter.fruit,
+                              pain: menu.gouter.pain1218,
+                              laitier: "—",
+                              remarque: "Fruit + pain selon texture.",
+                            };
+                          }
+
+                          return {
+                            nom: enfant.nom,
+                            age: libelleTrancheAge(tranche),
+                            composition: menu.gouter.fruit,
+                            pain: menu.gouter.pain18,
+                            laitier: menu.gouter.laitier18,
+                            remarque: "Goûter 18 mois et +.",
+                          };
+                        })
+                      : [
+                          {
+                            nom: "4–12 mois",
+                            age: "Repère",
+                            composition: menu.gouter.bebe,
+                            pain: "—",
+                            laitier: "—",
+                            remarque: "Compote adaptée.",
+                          },
+                          {
+                            nom: "12–18 mois",
+                            age: "Repère",
+                            composition: menu.gouter.fruit,
+                            pain: menu.gouter.pain1218,
+                            laitier: "—",
+                            remarque: "Fruit + pain.",
+                          },
+                          {
+                            nom: "18 mois et +",
+                            age: "Repère",
+                            composition: menu.gouter.fruit,
+                            pain: menu.gouter.pain18,
+                            laitier: menu.gouter.laitier18,
+                            remarque: "Fruit + pain + laitier selon fréquence.",
+                          },
+                        ];
+
+                  return (
+                    <article key={menu.index} className="rounded-[2rem] bg-white p-8 shadow-sm">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
-                          🍲 {menu.soupe}
-                          <button onClick={() => modifier(menu.index, "soupe")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier soupe
-                          </button>
+                          <p className="text-sm font-black uppercase tracking-[0.22em] text-[#6B8F71]">
+                            {menu.jour}
+                          </p>
+
+                          <h2 className="mt-2 text-3xl font-black text-[#243024]">
+                            Menu du jour
+                          </h2>
                         </div>
 
-                        <div>
-                          🥔 {menu.diner.feculent}
-                          <button onClick={() => modifier(menu.index, "feculent")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier féculent
-                          </button>
-                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span
+                            className={`rounded-full px-4 py-2 text-sm font-bold ${
+                              estCompatible
+                                ? "bg-[#E8F2EA] text-[#56735B]"
+                                : "bg-[#FFF4E5] text-[#9A641F]"
+                            }`}
+                          >
+                            {estCompatible ? "✅ Compatible" : "⚠ À vérifier"}
+                          </span>
 
-                        <div>
-                          🥦 {menu.diner.legumes}
-                          <button onClick={() => modifier(menu.index, "legumes")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier légumes
-                          </button>
-                        </div>
-
-                        <div>
-                          🍗 {menu.diner.proteine}
-                          <button onClick={() => modifier(menu.index, "proteine")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier VVP/O
-                          </button>
-                        </div>
-
-                        <div>
-                          🫒 {menu.diner.matiereGrasse}
-                          <button onClick={() => modifier(menu.index, "matiereGrasse")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier MG
-                          </button>
-                        </div>
-
-                        <div>
-                          🌿 {menu.diner.herbe}
-                          <button onClick={() => modifier(menu.index, "herbe")} className="block text-sm font-bold text-[#6B8F71] underline">
-                            Modifier herbe
-                          </button>
+                          {modeProActif && (
+                            <span className="rounded-full bg-[#F7F3EA] px-4 py-2 text-sm font-bold text-[#6B8F71]">
+                              {presents.length} enfant(s)
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      <p className="mt-5 rounded-2xl bg-white p-4 text-sm text-gray-700">
-                        {menu.diner.remarque}
-                      </p>
-                    </div>
+                      <div className="mt-6 rounded-[1.8rem] bg-[#F8F7F1] p-5 ring-1 ring-black/5">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <p className="text-sm font-black uppercase tracking-[0.2em] text-[#6B8F71]">
+                              Repas commun
+                            </p>
 
-                    <div className="mt-6 grid gap-4 md:grid-cols-3">
-                      {ages["4-12"] && (
-                        <div className="rounded-2xl bg-[#F7F3EA] p-5">
-                          <p className="font-bold">👶 4–12 mois</p>
-                          <p className="mt-2 text-sm text-gray-700">
-                            Pas de soupe. Repas vapeur/mixé simple : féculent + légumes + VVP/O selon l’avancée de la diversification.
-                          </p>
-                          <p className="mt-3">Goûter : {menu.gouter.bebe}</p>
-                          <button onClick={() => modifierGouter(menu.index, "bebe")} className="mt-2 text-sm font-bold text-[#6B8F71] underline">
-                            Modifier compote
-                          </button>
-                        </div>
-                      )}
-
-                      {ages["12-18"] && (
-                        <div className="rounded-2xl bg-[#F7F3EA] p-5">
-                          <p className="font-bold">🧒 12–18 mois</p>
-                          <p className="mt-2 text-sm text-gray-700">
-                            Soupe possible si texture adaptée. Morceaux fondants ou mouliné selon l’enfant.
-                          </p>
-                          <p className="mt-3">Goûter : {menu.gouter.fruit} + {menu.gouter.pain1218}</p>
-                          <button onClick={() => modifierGouter(menu.index, "fruit")} className="mt-2 text-sm font-bold text-[#6B8F71] underline">
-                            Modifier fruits
-                          </button>
-                        </div>
-                      )}
-
-                      {ages["18+"] && (
-                        <div className="rounded-2xl bg-[#F7F3EA] p-5">
-                          <p className="font-bold">👧 18 mois et +</p>
-                          <p className="mt-2 text-sm text-gray-700">
-                            Soupe possible. Repas présenté séparé si possible avec textures fondantes.
-                          </p>
-                          <p className="mt-3">
-                            Goûter : {menu.gouter.fruit} + {menu.gouter.pain18}
-                            {menu.gouter.laitier18 !== "Non nécessaire" ? ` + ${menu.gouter.laitier18}` : ""}
-                          </p>
-                          <div className="mt-2 flex gap-4">
-                            <button onClick={() => modifierGouter(menu.index, "fruit")} className="text-sm font-bold text-[#6B8F71] underline">
-                              Modifier fruits
-                            </button>
-                            <button onClick={() => modifierGouter(menu.index, "laitier")} className="text-sm font-bold text-[#6B8F71] underline">
-                              Modifier laitier
-                            </button>
+                            <h3 className="mt-1 text-2xl font-black">
+                              {menu.diner.plat}
+                            </h3>
                           </div>
+
+                          <p className="rounded-2xl bg-white px-4 py-3 text-sm text-gray-700">
+                            Soupe séparée pour les 12 mois et +.
+                          </p>
                         </div>
-                      )}
-                    </div>
 
-                    {modeProActif && (
-                      <div className="mt-6 rounded-2xl bg-[#FFF8E8] p-5">
-                        <p className="font-bold text-[#B2782D]">
-                          Vérification automatique du groupe
-                        </p>
+                        <div className="mt-5 overflow-x-auto rounded-[1.4rem] bg-white">
+                          <table className="w-full min-w-[900px] text-left text-sm">
+                            <thead className="bg-[#F1F7EC] text-[#45654A]">
+                              <tr>
+                                <th className="px-4 py-3">Eau</th>
+                                <th className="px-4 py-3">Soupe</th>
+                                <th className="px-4 py-3">Féculent</th>
+                                <th className="px-4 py-3">Légumes</th>
+                                <th className="px-4 py-3">VVP/O</th>
+                                <th className="px-4 py-3">MG</th>
+                                <th className="px-4 py-3">Herbe</th>
+                              </tr>
+                            </thead>
 
-                        {(() => {
-                          const presents = enfantsPresentsLeJour(menu.jourCourt);
-                          const allergiesAnalysees = analyserAllergies(menu, presents);
-                          const introductionsDetectees = verifierIntroductions(menu, presents);
-                          const enfantsToutIntroduit = presents.filter(
-                            (enfant) => enfant.alimentation_diversifiee_complete
-                          );
+                            <tbody>
+                              <tr className="border-t border-[#EFE7DB]">
+                                <td className="px-4 py-4">💧 {menu.diner.boisson}</td>
+                                <td className="px-4 py-4">
+                                  🍲 {menu.soupe}
+                                  <button
+                                    onClick={() => modifier(menu.index, "soupe")}
+                                    className="mt-1 block text-xs font-bold text-[#6B8F71] underline"
+                                  >
+                                    Modifier
+                                  </button>
+                                </td>
+                                <td className="px-4 py-4">
+                                  🥔 {menu.diner.feculent}
+                                  <button
+                                    onClick={() => modifier(menu.index, "feculent")}
+                                    className="mt-1 block text-xs font-bold text-[#6B8F71] underline"
+                                  >
+                                    Modifier
+                                  </button>
+                                </td>
+                                <td className="px-4 py-4">
+                                  🥦 {legumesCommuns}
+                                  <button
+                                    onClick={() => modifier(menu.index, "legumes")}
+                                    className="mt-1 block text-xs font-bold text-[#6B8F71] underline"
+                                  >
+                                    Modifier
+                                  </button>
+                                </td>
+                                <td className="px-4 py-4">
+                                  🍗 {menu.diner.proteine}
+                                  <button
+                                    onClick={() => modifier(menu.index, "proteine")}
+                                    className="mt-1 block text-xs font-bold text-[#6B8F71] underline"
+                                  >
+                                    Modifier
+                                  </button>
+                                </td>
+                                <td className="px-4 py-4">
+                                  🫒 {menu.diner.matiereGrasse}
+                                  <button
+                                    onClick={() => modifier(menu.index, "matiereGrasse")}
+                                    className="mt-1 block text-xs font-bold text-[#6B8F71] underline"
+                                  >
+                                    Modifier
+                                  </button>
+                                </td>
+                                <td className="px-4 py-4">
+                                  🌿 {menu.diner.herbe}
+                                  <button
+                                    onClick={() => modifier(menu.index, "herbe")}
+                                    className="mt-1 block text-xs font-bold text-[#6B8F71] underline"
+                                  >
+                                    Modifier
+                                  </button>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
 
-                          return (
-                            <div className="mt-3 space-y-3 text-sm leading-relaxed text-gray-700">
-                              <p>
-                                Enfants présents :{" "}
-                                {presents.length
-                                  ? presents.map((enfant) => enfant.nom).join(", ")
-                                  : "aucun enfant renseigné ce jour"}
+                      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                        <div className="rounded-[1.8rem] border border-[#E4EDDF] bg-[#F7FBF5] p-5">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#6B8F71]">
+                                Adaptations repas
                               </p>
 
-                              {presents.length > 0 && (
-                                <p>Textures du groupe : {groupeTextures(presents)}</p>
-                              )}
-
-                              {allergiesAnalysees.length > 0 ? (
-                                <div className="rounded-2xl bg-[#FFE5E5] p-4 text-red-600">
-                                  <p className="font-bold">
-                                    Attention : allergie possible détectée
-                                  </p>
-                                  <div className="mt-3 space-y-3">
-                                    {allergiesAnalysees.map((item, index) => (
-                                      <div key={`${item.enfant}-allergie-${index}`} className="rounded-2xl bg-white p-3 text-red-600">
-                                        <p className="font-bold">
-                                          ⚠ Allergie possible chez {item.enfant}
-                                        </p>
-
-                                        <p className="mt-1 text-sm">
-                                          Allergie(s) enregistrée(s) : {item.allergies.join(", ")}
-                                        </p>
-
-                                        <p className="mt-1 text-sm">
-                                          Alternative possible :{" "}
-                                          {item.alternatives.length > 0
-                                            ? item.alternatives.join(", ")
-                                            : "aucune alternative enregistrée"}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="rounded-2xl bg-white p-4">
-                                  Aucune allergie détectée automatiquement pour ce menu.
-                                </p>
-                              )}
-
-                              {introductionsDetectees.length > 0 ? (
-                                <div className="rounded-2xl bg-[#FFF4E5] p-4 text-[#9A641F]">
-                                  <p className="font-bold">
-                                    Aliments non introduits détectés
-                                  </p>
-
-                                  <div className="mt-3 space-y-3">
-                                    {introductionsDetectees.map((item, index) => (
-                                      <div key={`${item.enfant}-${item.aliment}-${index}`} className="rounded-2xl bg-white p-3">
-                                        <p className="font-bold">
-                                          ⚠ {item.aliment} non introduit chez {item.enfant}
-                                        </p>
-
-                                        <p className="mt-1 text-sm">
-                                          Catégorie : {item.categorie}
-                                        </p>
-
-                                        <p className="mt-1 text-sm">
-                                          Alternative proposée :{" "}
-                                          {item.alternatives.length > 0
-                                            ? item.alternatives.join(", ")
-                                            : "aucune alternative enregistrée dans cette catégorie"}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="rounded-2xl bg-white p-4">
-                                  Aucun aliment non introduit détecté automatiquement pour ce menu.
-                                </p>
-                              )}
-
-                              {enfantsToutIntroduit.length > 0 && (
-                                <p className="rounded-2xl bg-[#E8F2EA] p-4 text-[#56735B]">
-                                  Alimentation diversifiée complète :{" "}
-                                  {enfantsToutIntroduit
-                                    .map((enfant) => enfant.nom)
-                                    .join(", ")}
-                                </p>
-                              )}
-
-                              <div className="rounded-2xl bg-white p-4">
-                                {allergiesAnalysees.length === 0 &&
-                                introductionsDetectees.length === 0 ? (
-                                  <p className="font-bold text-[#56735B]">
-                                    ✅ Menu compatible avec le groupe selon les informations encodées.
-                                  </p>
-                                ) : (
-                                  <p className="font-bold text-[#B2782D]">
-                                    ⚠ Adaptation à prévoir pour un ou plusieurs enfants.
-                                  </p>
-                                )}
-
-                                <p className="mt-2 text-xs leading-relaxed text-gray-600">
-                                  Cette vérification reste une aide : les consignes des parents,
-                                  les protocoles médicaux et l’observation de l’enfant restent prioritaires.
-                                </p>
-                              </div>
+                              <h3 className="mt-1 text-2xl font-black">
+                                Ce qui change
+                              </h3>
                             </div>
-                          );
-                        })()}
+                          </div>
+
+                          <div className="mt-5 overflow-x-auto rounded-[1.4rem] bg-white">
+                            <table className="w-full min-w-[620px] text-left text-sm">
+                              <thead className="bg-[#F1F7EC] text-[#45654A]">
+                                <tr>
+                                  <th className="px-4 py-3">Enfant</th>
+                                  <th className="px-4 py-3">Âge</th>
+                                  <th className="px-4 py-3">Texture</th>
+                                  <th className="px-4 py-3">Adaptation</th>
+                                </tr>
+                              </thead>
+
+                              <tbody>
+                                {lignesAdaptations.map((ligne) => (
+                                  <tr key={`${menu.index}-${ligne.nom}-adaptation`} className="border-t border-[#EFE7DB]">
+                                    <td className="px-4 py-4 font-black">{ligne.nom}</td>
+                                    <td className="px-4 py-4">
+                                      <span className="rounded-full bg-[#F7F3EA] px-3 py-1 text-xs font-bold">
+                                        {ligne.age}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-4">{ligne.texture}</td>
+                                    <td className="px-4 py-4">
+                                      <span
+                                        className={`rounded-full px-3 py-1 text-xs font-bold ${
+                                          ligne.statut === "commun"
+                                            ? "bg-[#E8F2EA] text-[#56735B]"
+                                            : "bg-[#FFF4E5] text-[#9A641F]"
+                                        }`}
+                                      >
+                                        {ligne.statut === "commun" ? "🟢" : "🟠"} {ligne.adaptation}
+                                      </span>
+                                      <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                                        {ligne.remarque}
+                                      </p>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[1.8rem] bg-[#FFFDF8] p-5 ring-1 ring-black/5">
+                          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#B2782D]">
+                                Goûter
+                              </p>
+
+                              <h3 className="mt-1 text-2xl font-black">
+                                Par enfant
+                              </h3>
+                            </div>
+
+                            <div className="flex flex-wrap gap-3">
+                              <button
+                                onClick={() => modifierGouter(menu.index, "bebe")}
+                                className="text-sm font-bold text-[#6B8F71] underline"
+                              >
+                                Compote
+                              </button>
+                              <button
+                                onClick={() => modifierGouter(menu.index, "fruit")}
+                                className="text-sm font-bold text-[#6B8F71] underline"
+                              >
+                                Fruits
+                              </button>
+                              <button
+                                onClick={() => modifierGouter(menu.index, "laitier")}
+                                className="text-sm font-bold text-[#6B8F71] underline"
+                              >
+                                Laitier
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-5 overflow-x-auto rounded-[1.4rem] bg-white">
+                            <table className="w-full min-w-[620px] text-left text-sm">
+                              <thead className="bg-[#FFF4E5] text-[#9A641F]">
+                                <tr>
+                                  <th className="px-4 py-3">Enfant</th>
+                                  <th className="px-4 py-3">Âge</th>
+                                  <th className="px-4 py-3">Fruit / compote</th>
+                                  <th className="px-4 py-3">Pain</th>
+                                  <th className="px-4 py-3">Laitier</th>
+                                </tr>
+                              </thead>
+
+                              <tbody>
+                                {lignesGouter.map((ligne) => (
+                                  <tr key={`${menu.index}-${ligne.nom}-gouter`} className="border-t border-[#EFE7DB]">
+                                    <td className="px-4 py-4 font-black">{ligne.nom}</td>
+                                    <td className="px-4 py-4">
+                                      <span className="rounded-full bg-[#F7F3EA] px-3 py-1 text-xs font-bold">
+                                        {ligne.age}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-4">🍎 {ligne.composition}</td>
+                                    <td className="px-4 py-4">🍞 {ligne.pain}</td>
+                                    <td className="px-4 py-4">🥛 {ligne.laitier}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </div>
-                    )}
 
-                    <div className="mt-6 rounded-2xl bg-[#F1F7EC] p-5">
-                      <p className="font-bold text-[#6B8F71]">🌿 Adaptation des repas</p>
+                      <details className="mt-6 rounded-[1.6rem] bg-[#F8F7F1] p-5">
+                        <summary className="cursor-pointer font-black text-[#6B8F71]">
+                          Voir les vérifications allergies / introductions
+                        </summary>
 
-                      <p className="mt-3 text-sm leading-relaxed text-gray-700">
-                        Les textures, allergies, introductions alimentaires et l’option “alimentation diversifiée complète” sont définies dans chaque fiche enfant.
-                        Le générateur récupère ces informations pour aider à vérifier la cohérence du menu,
-                        tout en gardant les idées de présentation dans l’onglet Recettes et les informations
-                        pédagogiques dans l’onglet Le savais-tu.
-                      </p>
-                    </div>
-                  </article>
-                ))}
+                        {modeProActif ? (
+                          <div className="mt-4 space-y-4 text-sm leading-relaxed text-gray-700">
+                            {allergiesAnalysees.length > 0 ? (
+                              <div className="rounded-2xl bg-[#FFE5E5] p-4 text-red-600">
+                                <p className="font-bold">Allergies possibles détectées</p>
+                                <div className="mt-3 space-y-2">
+                                  {allergiesAnalysees.map((item, index) => (
+                                    <div key={`${item.enfant}-allergie-${index}`} className="rounded-xl bg-white p-3">
+                                      <p className="font-bold">{item.enfant}</p>
+                                      <p>Allergie(s) : {item.allergies.join(", ")}</p>
+                                      <p>
+                                        Alternative : {item.alternatives.length > 0 ? item.alternatives.join(", ") : "aucune alternative enregistrée"}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="rounded-2xl bg-white p-4">
+                                Aucune allergie détectée automatiquement.
+                              </p>
+                            )}
+
+                            {introductionsDetectees.length > 0 ? (
+                              <div className="rounded-2xl bg-[#FFF4E5] p-4 text-[#9A641F]">
+                                <p className="font-bold">Aliments non introduits détectés</p>
+                                <div className="mt-3 space-y-2">
+                                  {introductionsDetectees.map((item, index) => (
+                                    <div key={`${item.enfant}-${item.aliment}-${index}`} className="rounded-xl bg-white p-3">
+                                      <p className="font-bold">{item.aliment} non introduit chez {item.enfant}</p>
+                                      <p>Catégorie : {item.categorie}</p>
+                                      <p>
+                                        Alternative : {item.alternatives.length > 0 ? item.alternatives.join(", ") : "aucune alternative enregistrée"}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="rounded-2xl bg-white p-4">
+                                Aucun aliment non introduit détecté automatiquement.
+                              </p>
+                            )}
+
+                            <p className="text-xs leading-relaxed text-gray-500">
+                              Cette vérification reste une aide : les consignes des parents, les protocoles médicaux et l’observation de l’enfant restent prioritaires.
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="mt-4 text-sm leading-relaxed text-gray-600">
+                            Active le mode pro avec les enfants enregistrés pour voir les vérifications automatiques.
+                          </p>
+                        )}
+                      </details>
+                    </article>
+                  );
+                })}
               </section>
 
 

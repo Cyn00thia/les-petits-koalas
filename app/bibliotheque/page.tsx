@@ -10,8 +10,8 @@ type Food = {
   categorie: string;
   description?: string;
   bienfaits?: string;
-  textures?: string[];
-  presentations?: string[];
+  textures?: string;
+  presentations?: string;
   conseils?: string;
   photo_url?: string;
 };
@@ -33,8 +33,8 @@ const exemples: Food[] = [
     categorie: "legumes",
     description: "Légume racine doux et coloré, apprécié des enfants pour son goût légèrement sucré.",
     bienfaits: "Riche en bêta-carotène, source de fibres et goût naturellement doux.",
-    textures: ["Mixé", "Écrasé", "Morceaux fondants", "Bâtonnets vapeur", "Frites au four"],
-    presentations: ["Purée lisse", "Écrasée", "Bâtonnets vapeur", "Frites de carotte au four"],
+    textures: "Mixé\\nÉcrasé\\nMorceaux fondants\\nBâtonnets vapeur\\nFrites au four",
+    presentations: "Purée lisse\\nÉcrasée\\nBâtonnets vapeur\\nFrites de carotte au four",
     conseils: "La carotte se marie facilement avec la pomme de terre, le panais, la courgette ou le poireau.",
   },
   {
@@ -43,8 +43,8 @@ const exemples: Food[] = [
     categorie: "legumes",
     description: "Légume vert intéressant pour varier les goûts et les couleurs.",
     bienfaits: "Source de fibres, vitamines et minéraux.",
-    textures: ["Mixé", "Écrasé", "Fleurettes fondantes"],
-    presentations: ["Purée brocoli-pomme de terre", "Fleurettes vapeur", "Soupe brocoli-courgette"],
+    textures: "Mixé\\nÉcrasé\\nFleurettes fondantes",
+    presentations: "Purée brocoli-pomme de terre\\nFleurettes vapeur\\nSoupe brocoli-courgette",
   },
   {
     id: "pomme",
@@ -52,8 +52,8 @@ const exemples: Food[] = [
     categorie: "fruits",
     description: "Fruit doux, facile à proposer en compote ou en morceaux fondants.",
     bienfaits: "Source de fibres et fruit très pratique au quotidien.",
-    textures: ["Compote", "Écrasé", "Morceaux fondants"],
-    presentations: ["Compote pomme-poire", "Pomme cuite", "Petits morceaux fondants"],
+    textures: "Compote\\nÉcrasé\\nMorceaux fondants",
+    presentations: "Compote pomme-poire\\nPomme cuite\\nPetits morceaux fondants",
   },
   {
     id: "pomme-de-terre",
@@ -61,8 +61,8 @@ const exemples: Food[] = [
     categorie: "feculents",
     description: "Féculent de base, facile à adapter à de nombreuses textures.",
     bienfaits: "Apporte de l’énergie et se marie facilement avec les légumes.",
-    textures: ["Purée", "Écrasée", "Cubes fondants", "Quartiers au four"],
-    presentations: ["Purée", "Cubes vapeur", "Frites au four", "Tortilla"],
+    textures: "Purée\\nÉcrasée\\nCubes fondants\\nQuartiers au four",
+    presentations: "Purée\\nCubes vapeur\\nFrites au four\\nTortilla",
   },
   {
     id: "oeuf",
@@ -70,8 +70,8 @@ const exemples: Food[] = [
     categorie: "vvpo",
     description: "Source de protéines pouvant être proposée dans des préparations adaptées.",
     bienfaits: "Source de protéines et ingrédient pratique pour varier les repas.",
-    textures: ["Œuf dur émietté", "Omelette fondante", "Tortilla"],
-    presentations: ["Omelette", "Tortilla pommes de terre-carottes", "Œuf dur adapté"],
+    textures: "Œuf dur émietté\\nOmelette fondante\\nTortilla",
+    presentations: "Omelette\\nTortilla pommes de terre-carottes\\nŒuf dur adapté",
   },
 ];
 
@@ -79,7 +79,9 @@ function getCat(categorie: string) {
   return categories.find((c) => c.key === categorie);
 }
 
-function texteVersListe(texte: string) {
+function listeDepuisTexte(texte?: string) {
+  if (!texte) return [];
+
   return texte
     .split("\n")
     .map((ligne) => ligne.trim())
@@ -139,8 +141,8 @@ export default function BibliothequePage() {
       categorie,
       description: description.trim(),
       bienfaits: bienfaits.trim(),
-      textures: texteVersListe(textures),
-      presentations: texteVersListe(presentations),
+      textures: textures.trim(),
+      presentations: presentations.trim(),
       conseils: conseils.trim(),
       photo_url: photoUrl.trim(),
     };
@@ -155,7 +157,7 @@ export default function BibliothequePage() {
 
     if (error) {
       console.log(error);
-      alert("Erreur lors de l’ajout de l’aliment.");
+      alert(error.message || "Erreur lors de l’ajout de l’aliment.");
       return;
     }
 
@@ -314,7 +316,10 @@ export default function BibliothequePage() {
                     <div className="rounded-[1.5rem] border border-[#E8E0D5] bg-white p-5">
                       <p className="text-xl font-black">👶 Textures possibles</p>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {(aliment.textures?.length ? aliment.textures : ["Mixé", "Écrasé", "Morceaux fondants"]).map((texture) => (
+                        {(listeDepuisTexte(aliment.textures).length
+                          ? listeDepuisTexte(aliment.textures)
+                          : ["Mixé", "Écrasé", "Morceaux fondants"]
+                        ).map((texture) => (
                           <span key={texture} className="rounded-full bg-[#F7F3EA] px-4 py-2 text-sm font-bold">
                             {texture}
                           </span>
@@ -325,7 +330,15 @@ export default function BibliothequePage() {
                     <div className="rounded-[1.5rem] border border-[#E8E0D5] bg-white p-5">
                       <p className="text-xl font-black">🍽️ Présentations possibles</p>
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        {(aliment.presentations?.length ? aliment.presentations : ["Purée lisse", "Écrasé doux", "Morceaux fondants", "Présentation familiale adaptée"]).map((presentation) => (
+                        {(listeDepuisTexte(aliment.presentations).length
+                          ? listeDepuisTexte(aliment.presentations)
+                          : [
+                              "Purée lisse",
+                              "Écrasé doux",
+                              "Morceaux fondants",
+                              "Présentation familiale adaptée",
+                            ]
+                        ).map((presentation) => (
                           <div key={presentation} className="rounded-[1rem] bg-[#F7F3EA] p-3 text-sm font-bold">
                             {presentation}
                           </div>
